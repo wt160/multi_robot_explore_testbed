@@ -26,12 +26,11 @@ class WindowWFD:
         offset_y = self.raw_map_.info.origin.position.y
         curr_x_cell = (int)((self.curr_pos_[0] - offset_x) / self.raw_map_.info.resolution) 
         curr_y_cell = (int)((self.curr_pos_[1] - offset_y) / self.raw_map_.info.resolution)
-        print('1')
-        print('curr_cell:({},{})'.format(curr_x_cell, curr_y_cell))
-        print('curr value:{}'.format(self.raw_map_.data[(int)(curr_y_cell * self.raw_map_.info.width + curr_x_cell)]))
+        print('(WindowWFD)curr_cell:({},{})'.format(curr_x_cell, curr_y_cell))
+        print('(WindowWFD)offset:{},{}'.format(offset_x, offset_y))
+        print('(WindowWFD)curr value:{}'.format(self.raw_map_.data[(int)(curr_y_cell * self.raw_map_.info.width + curr_x_cell)]))
         if not self.e_util.isCellFree(self.raw_map_, curr_x_cell, curr_y_cell, self.thres_):
             (curr_x_cell, curr_y_cell) = self.e_util.getFreeNeighborRandom((curr_x_cell, curr_y_cell), self.raw_map_, 0, 0.5, self.thres_)
-        print('2')
         dw = self.raw_map_.info.width
         dh = self.raw_map_.info.height
         queue = deque() 
@@ -39,7 +38,6 @@ class WindowWFD:
         is_explored_frontier_map = dict() 
         is_visited_map = dict() 
         is_visited_map[curr_x_cell + curr_y_cell*dw] = True
-        print('3')
         #start windowed WFD
         while len(queue) > 0:
             curr_cell = queue[0]
@@ -69,6 +67,7 @@ class WindowWFD:
                     if self.e_util.isCellFree(self.raw_map_, n[0], n[1], self.thres_) or self.e_util.isFrontier(self.raw_map_, n, self.thres_):
                         queue.append(n)
         
+        print('(WindowWFD)end')
         return frontier_list, covered_set
 
     def findConnectedFrontiers(self, cell, map):

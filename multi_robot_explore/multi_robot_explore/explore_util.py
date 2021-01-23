@@ -108,6 +108,7 @@ class ExploreUtil:
         
         return neighbors
 
+
     def isFrontierWithinWindow(self, old_f, current_pos, window_size_double, map, covered_set):    
 
         for f in old_f:

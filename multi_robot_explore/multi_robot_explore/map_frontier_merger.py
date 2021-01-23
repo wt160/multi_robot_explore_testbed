@@ -8,7 +8,7 @@ from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
 from multi_robot_explore.explore_util import ExploreUtil 
 from multi_robot_interfaces.msg import Frontier
-
+import copy
 # import explore_util.ExploreUtil as explore_util
 # input: occupancyGrid, robot_pos, window_size, 
 #output: get a set of frontiers
@@ -75,7 +75,7 @@ class MapAndFrontierMerger:
     #merge my_map with peer_map_dict, return the merged my_map
     #this function being a standalone tool  
     def mergeMapFromFresh(self, my_map, peer_robot_names, peer_map_dict, offset_dict):
-        merged_map = my_map
+        merged_map = copy.deepcopy(my_map)
         for peer_name in peer_robot_names:
             # this is very careful operation, not trusting previous outdated map at all
             # if self.peer_update_done_dict[peer_name] == True:

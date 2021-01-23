@@ -159,7 +159,7 @@ class MultiExploreNode(Node):
     
     def getLocalMapAndFrontierCallback(self, request, response):
 
-        self.get_logger().warn('{} getLocalMapAndFrontierCallback'.format(self.robot_name_))
+        self.get_logger().warn('{} getLocalMapAndFrontierRequest'.format(self.robot_name_))
         response.map = self.inflated_local_map_            
         response.local_frontier = self.local_frontiers_msg_
         return response
@@ -196,7 +196,7 @@ class MultiExploreNode(Node):
             # self.get_logger().info('Got {}'.format(repr(transform)))
             self.current_pos_ = (transform.transform.translation.x, transform.transform.translation.y)
             t_1 = time.time()
-            self.get_logger().info('robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
+            self.get_logger().info('(updateWindowWFD): robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
             
             return True
         except LookupException as e:
@@ -215,7 +215,7 @@ class MultiExploreNode(Node):
             when = rclpy.time.Time()
             try:
                 # Suspends callback until transform becomes available
-                transform = self._tf_buffer.lookup_transform(peer_fixed_frame, self.local_fixed_frame_, when, timeout=Duration(seconds=30.0))
+                transform = self._tf_buffer.lookup_transform(self.world_frame_, peer_fixed_frame, when, timeout=Duration(seconds=30.0))
                 # self.get_logger().info('Got {}'.format(repr(transform)))
                 self.persistent_offset_from_peer_to_local_[peer_name] = (transform.transform.translation.x, transform.transform.translation.y)
                 self.get_logger().info('robot {} fixed frame to local_frame relative pos:({},{})'.format(peer_name, transform.transform.translation.x, transform.transform.translation.y))
@@ -236,7 +236,7 @@ class MultiExploreNode(Node):
         self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
         self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 3)
         self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
-        # self.inflated_map_pub_.publish(self.inflated_local_map_)
+        self.inflated_map_pub_.publish(self.inflated_local_map_)
         self.local_map_callback_lock_ = False
         self.tic_ = self.tic_ + 1
         mutex.release()
@@ -249,24 +249,25 @@ class MultiExploreNode(Node):
         mutex = Lock()
         mutex.acquire()
         if self.inflated_local_map_ == None:
+            self.get_logger().error('(updateWindowWFD): no inflated_local_map')
             return
-        self.get_logger().info('updateWindowWFD: init')
+        self.get_logger().info('(updateWindowWFD): init')
         if self.getRobotCurrentPos():
-            self.get_logger().warn('(updateWindowWFD): start window_wfd!!!')
+            # self.get_logger().warn('(updateWindowWFD): start window_wfd!!!')
             current_map = OccupancyGrid()
             current_map.header = self.inflated_local_map_.header
             current_map.info = self.inflated_local_map_.info
             current_map.data = list(self.inflated_local_map_.data)
             window_wfd = WindowWFD(current_map, self.current_pos_, 150)
-            if self.DEBUG_ == True:
-                self.inflated_map_pub_.publish(current_map)
+            # if self.DEBUG_ == True:
+                # self.inflated_map_pub_.publish(current_map)
             t_0 = time.time()
             local_frontiers_cell, covered_set = window_wfd.getLocalFrontiers()
 
             t_1 = time.time()
             temp_local_frontiers_ = []
             temp_local_frontiers_msg_ = []
-            self.get_logger().warn('local_frontiers_cell size:{}, used time:{}'.format(len(local_frontiers_cell), t_1 - t_0))
+            self.get_logger().info('(updateWindowWFD)local_frontiers_cell size:{}, used time:{}'.format(len(local_frontiers_cell), t_1 - t_0))
             for f_connect_cell in local_frontiers_cell:
                 f_connect = []
                 f_msg = Frontier()
@@ -287,7 +288,7 @@ class MultiExploreNode(Node):
 
             #DEBUG
             if self.DEBUG_:
-                self.get_logger().warn('debug local_frontiers')
+                # self.get_logger().warn('debug local_frontiers')
                 local_map_dw = current_map.info.width
                 local_map_dh = current_map.info.height
                 frontiers_index_list = []
@@ -306,6 +307,8 @@ class MultiExploreNode(Node):
                 temp_array[:]=(int)(-1)
                 frontier_debug_map.data = temp_array.ravel().tolist()
                 for idx in frontiers_index_list:
+                    if int(idx) < 0 or int(idx) > len(frontier_debug_map.data)-1:
+                        continue
                     frontier_debug_map.data[int(idx)] = 0
                 frontier_map_width = frontier_debug_map.info.width
                 frontier_map_height = frontier_debug_map.info.height
@@ -354,11 +357,12 @@ class MultiExploreNode(Node):
 
 
                 self.debug_frontier_pub_.publish(frontier_debug_map)
-                self.get_logger().warn('end debug local_frontiers')
+                # self.get_logger().warn('end debug local_frontiers')
                 #DEBUG
 
         else:
-            self.get_logger().error('[multi_explore_node.py]updateWindowWFD: failed to get robot current pos')
+            self.get_logger().error('(updateWindowWFD): failed to get robot current pos')
+        self.get_logger().info('(updateWindowWFD): end')
         mutex.release()
 
     def updateLocalFrontiers(self, new_frontiers, new_frontiers_msg, window_size, current_pos, map, covered_set):
@@ -368,8 +372,8 @@ class MultiExploreNode(Node):
             self.local_frontiers_msg_ = new_frontiers_msg
         else:
 
-            print('self.local_frontiers_ size:{}'.format(len(self.local_frontiers_)))
-            print('self.local_frontiers_msg_ size:{}'.format(len(self.local_frontiers_msg_)))
+            # print('self.local_frontiers_ size:{}'.format(len(self.local_frontiers_)))
+            # print('self.local_frontiers_msg_ size:{}'.format(len(self.local_frontiers_msg_)))
             copied_local_frontiers_ = list(self.local_frontiers_)
             copied_local_frontiers_msg_ = list(self.local_frontiers_msg_)
             for old_index, old_f in enumerate(copied_local_frontiers_):
@@ -392,8 +396,9 @@ class MultiExploreNode(Node):
         
         self.merged_map_ = self.mergePeerMap()
         if self.merged_map_ == -1:
-            self.get_logger().warn('testMergeMap: mergePeerMap return -1')
+            self.get_logger().warn('(testMergeMap): mergePeerMap return -1')
         if self.merged_map_ != -1:
+            self.get_logger().info('(testMergeMap): publish merged_map')
             self.debug_merge_map_pub_.publish(self.merged_map_)
 
 
@@ -568,6 +573,8 @@ def main(args=None):
     explore_node = MultiExploreNode(robot_name)
     executor = MultiThreadedExecutor(6)
     executor.add_node(explore_node)
+
+    
     spin_thread = Thread(target=executor.spin)
     # spin_thread = Thread(target=rclpy.spin, args=(explore_node,))
     spin_thread.start()
