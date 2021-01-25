@@ -17,6 +17,7 @@ from tf2_ros import LookupException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 
 # from collections.abc import Sequence
@@ -39,6 +40,7 @@ class MultiExploreNode(Node):
     def __init__(self, robot_name):
         super().__init__(robot_name)
         self.DEBUG_ = True
+        self.para_group = ReentrantCallbackGroup()
         self.local_frontiers_ = []   #list of frontier, each is list of (double, double) in the local map frame
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
         self.global_frontiers_ = []
@@ -79,7 +81,7 @@ class MultiExploreNode(Node):
         self.SYSTEM_SHUTDOWN = 6
 
         # self.local_map_srv = self.create_service(GetLocalMap, self.robot_name_ + '/get_local_map', self.getLocalMapCallback)
-        self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontier, self.robot_name_ + '/get_local_map_and_frontier', self.  getLocalMapAndFrontierCallback)
+        self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontier, self.robot_name_ + '/get_local_map_and_frontier', self.getLocalMapAndFrontierCallback)
 
 
         self.local_map_callback_lock_ = False
@@ -160,9 +162,13 @@ class MultiExploreNode(Node):
     def getLocalMapAndFrontierCallback(self, request, response):
 
         self.get_logger().warn('{} getLocalMapAndFrontierRequest'.format(self.robot_name_))
+        if self.inflated_local_map_ == None:
+            self.inflated_local_map_ = OccupancyGrid()
         response.map = self.inflated_local_map_            
         response.local_frontier = self.local_frontiers_msg_
         return response
+        
+
 
     def testGetNodeNames(self):
         # for i in range(20):
@@ -226,6 +232,7 @@ class MultiExploreNode(Node):
 
     def localMapCallback(self, map_msg):
         #do a window_WFD from robot's current position, get a set of new frontiers, and integrate the new found frontiers with existing self.local_frontiers_
+        self.get_logger().warn('{}:localMapCallback'.format(self.tic_))
         mutex = Lock()
         mutex.acquire()
         if self.local_map_callback_lock_ == True:
@@ -248,7 +255,7 @@ class MultiExploreNode(Node):
     def updateWindowWFD(self):
         mutex = Lock()
         mutex.acquire()
-        if self.inflated_local_map_ == None:
+        if self.inflated_local_map_ == None or self.inflated_local_map_ == OccupancyGrid():
             self.get_logger().error('(updateWindowWFD): no inflated_local_map')
             return
         self.get_logger().info('(updateWindowWFD): init')
@@ -418,17 +425,35 @@ class MultiExploreNode(Node):
                 self.get_logger().info('/get_local_map_and_frontier service not available, waiting again...')
             req = GetLocalMapAndFrontier.Request()
             # req.request_robot_name.data = self.robot_name_
-            service_response_future[robot] = service_client_dict[robot].call(req)
+            service_response_future[robot] = service_client_dict[robot].call_async(req)
             # rclpy.spin_once(self)
             # self.peer_data_updated_[robot] = False
-            self.peer_map_[robot] = service_response_future[robot].map
-            self.peer_local_frontiers_[robot] = service_response_future[robot].local_frontier
-            self.peer_data_updated_[robot] = True
+            # self.peer_map_[robot] = service_response_future[robot].map
+            # self.peer_local_frontiers_[robot] = service_response_future[robot].local_frontier
+            # self.peer_data_updated_[robot] = True
         
         # response = service_response_future[robot].result()
-        
+        t_0 = time.time()
+        peer_update_done = False
+        while not peer_update_done and time.time() - t_0 < 2:
+            peer_update_done = True
+            for robot in self.persistent_robot_peers_:
+                rclpy.spin_once(self)
+                self.get_logger().error('check service response future')
+                if service_response_future[robot].done():
+                    response = service_response_future[robot].result()
+                    self.peer_map_[robot] = response.map
+                    print(self.peer_map_)
+                    self.peer_local_frontiers_[robot] = response.local_frontier
+                    self.peer_data_updated_[robot] = True
+                else:
+                    peer_update_done = False
+
+
+
+
         self.get_logger().warn('get service response!!!!!!!!!!!!!!!!!!')
-        peer_update_done = True
+        # peer_update_done = True
         # cache previous stored peer_map_, at least can be used for navigation
         # self.peer_map_.clear()
         # self.peer_local_frontiers_.clear()
@@ -550,11 +575,17 @@ class MultiExploreNode(Node):
             self.current_state_ = self.GOING_TO_TARGET
             pass
         elif self.current_state_ == self.TEST_MERGE_MAP:
-            self.updateWindowWFD()  
-            self.testMergeMap()               
+            self.updateWindowWFD() 
+            if self.robot_name_ == 'tb0': 
+                if self.tic_ % 10 == 0:
+                    self.testMergeMap()
+            if self.robot_name_ == 'tb1':
+                if self.tic_ % 15 == 0:
+                    self.testMergeMap()               
             # self.name_timer_callback()           
             print('tic:{}'.format(self.tic_))  
             # self.get_logger().info('self.TEST_MERGE_MAP')
+            self.tic_ = self.tic_ + 1
             self.current_state_ = self.TEST_MERGE_MAP
         elif self.current_state_ == self.SYSTEM_SHUTDOWN:
             return self.SYSTEM_SHUTDOWN
@@ -571,7 +602,7 @@ def main(args=None):
     robot_name = sys.argv[1]
     peer_robot_name = sys.argv[2]  
     explore_node = MultiExploreNode(robot_name)
-    executor = MultiThreadedExecutor(6)
+    executor = MultiThreadedExecutor(8)
     executor.add_node(explore_node)
 
     

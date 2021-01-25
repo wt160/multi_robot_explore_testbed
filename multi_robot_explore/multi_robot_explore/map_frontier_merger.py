@@ -81,7 +81,7 @@ class MapAndFrontierMerger:
             # if self.peer_update_done_dict[peer_name] == True:
             #     pmap = self.peer_map_dict_[peer_name]
             #     self.merged_map_ = self.mapExpand(self.merged_map_, pmap, self.offset_from_peer_to_local_fixed[peer_name])
-            # print(peer_map_dict)
+            print(peer_map_dict)
             print('mergeMapFromFresh: pmap is received')
             #by not checking the update status of peer map, trust the possibly outdated peer map, since it can only be ever growing
             pmap = peer_map_dict[peer_name]
@@ -190,10 +190,11 @@ class MapAndFrontierMerger:
         target_dw = target_map.info.width
         target_dh = target_map.info.height
         output_map = OccupancyGrid()
-        output_map = input_map
+        output_map = copy.deepcopy(input_map)
         offset_x = offset_from_target_to_input[0]
         offset_y = offset_from_target_to_input[1]
-
+        print('(mapExpandFromFresh):offset_x:{}'.format(offset_x))
+        print('(mapExpandFromFresh):offset_y:{}'.format(offset_y))
         input_width = input_dw * input_map.info.resolution
         input_height = input_dh * input_map.info.resolution
         target_width = target_map.info.width * target_map.info.resolution
@@ -305,15 +306,18 @@ class MapAndFrontierMerger:
 
         output_map.info.origin.position.x = output_origin_x
         output_map.info.origin.position.y = output_origin_y
-
+        print('output_origin_x:{}'.format(output_origin_x))
+        print('output_origin_y:{}'.format(output_origin_y))
         input_array = np.array(input_map.data)
         output_map.data = []
         output_array = np.zeros((1, output_width_cell * output_height_cell), dtype=np.int8)
         output_array[:] = -1
         input_origin_to_output_origin_x_cell = (int)((output_origin_x - input_map.info.origin.position.x) / input_map.info.resolution)
         input_origin_to_output_origin_y_cell = (int)((output_origin_y - input_map.info.origin.position.y) / input_map.info.resolution)
+        print('input_origin_to_output_origin_x_cell:{}'.format(input_origin_to_output_origin_x_cell))
+        print('input_origin_to_output_origin_y_cell:{}'.format(input_origin_to_output_origin_y_cell))
         for x in range(input_dw):
-            for y in range(input_dh):
+            for y in range(input_dh): 
                 new_x = x - input_origin_to_output_origin_x_cell
                 new_y = y - input_origin_to_output_origin_y_cell
                 input_value = input_array[y*input_dw + x]
