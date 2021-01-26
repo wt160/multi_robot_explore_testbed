@@ -5,6 +5,7 @@ from rclpy.duration import Duration
 import time
 import sys
 import numpy as np
+import copy
 from std_msgs.msg import String
 from nav_msgs.msg import OccupancyGrid
 from multi_robot_explore.window_WFD import WindowWFD
@@ -18,7 +19,6 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
-
 
 # from collections.abc import Sequence
 # from collections.abc import Set
@@ -65,6 +65,9 @@ class MultiExploreNode(Node):
         self.merge_map_frontier_timeout_ = 5
         
         self.merged_map_ = None
+        self.merged_frontiers_ = []
+
+
 
         self.world_frame_ = self.robot_name_ + '/map'
         self.local_fixed_frame_ = self.robot_name_ + '/base_footprint'
@@ -91,6 +94,7 @@ class MultiExploreNode(Node):
             self.localMapCallback,
             10)
         # self.discover_beacon_pub_ = self.create_publisher(String, 'robot_beacon', 10)
+        self.debug_merge_frontiers_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/merged_frontiers_debug', 10)
         self.debug_merge_map_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/merged_map_debug', 10)
         self.debug_frontier_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/frontier_map_debug', 10)
         self.inflated_map_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/inflated_map_debug', 10)
@@ -372,6 +376,41 @@ class MultiExploreNode(Node):
         self.get_logger().info('(updateWindowWFD): end')
         mutex.release()
 
+    def generateFrontierDebugMap(self, frontier_msg_list, current_map):
+        local_map_dw = current_map.info.width
+        local_map_dh = current_map.info.height
+        frontiers_index_list_w = []
+        frontiers_index_list_h = []
+
+        # for f_connect in local_frontiers_cell:
+        #     for f_cell in f_connect:
+        #         frontiers_index_list.append(f_cell[1]*local_map_dw + f_cell[0])
+        for f_connect_msg in frontier_msg_list:
+            for f_pt in f_connect_msg.frontier:
+                f_cell = ((int)((f_pt.point.x - current_map.info.origin.position.x) / current_map.info.resolution) ,  (int)((f_pt.point.y - current_map.info.origin.position.y) / current_map.info.resolution))
+                frontiers_index_list_h.append(f_cell[1])
+                frontiers_index_list_w.append(f_cell[0])
+
+        frontier_debug_map = OccupancyGrid()
+        frontier_debug_map.header = copy.deepcopy(current_map.header)
+        frontier_debug_map.info = copy.deepcopy(current_map.info)
+
+        
+        temp_array = np.asarray(current_map.data, dtype=np.int8).reshape(local_map_dh, local_map_dw)
+        temp_array[:]=(int)(-1)
+        temp_array[frontiers_index_list_h, frontiers_index_list_w] = 0
+        # temp_array = np.zeros((1, local_map_dw*local_map_dh), dtype=np.int8)
+        frontier_debug_map.data = temp_array.ravel().tolist()
+        # for idx in frontiers_index_list:
+        #     if int(idx) < 0 or int(idx) > len(frontier_debug_map.data)-1:
+        #         continue
+        #     frontier_debug_map.data[int(idx)] = 0
+        # frontier_map_width = frontier_debug_map.info.width
+        # frontier_map_height = frontier_debug_map.info.height
+        return frontier_debug_map
+
+
+
     def updateLocalFrontiers(self, new_frontiers, new_frontiers_msg, window_size, current_pos, map, covered_set):
         #update self.local_frontiers_ , self.local_frontiers_msg_ , they could be empty or already have some frontiers
         if len(self.local_frontiers_) == 0:
@@ -399,6 +438,8 @@ class MultiExploreNode(Node):
                 self.local_frontiers_msg_.append(new_f_msg)
 
 
+
+
     def testMergeMap(self):
         
         self.merged_map_ = self.mergePeerMap()
@@ -408,6 +449,15 @@ class MultiExploreNode(Node):
             self.get_logger().info('(testMergeMap): publish merged_map')
             self.debug_merge_map_pub_.publish(self.merged_map_)
 
+    def testMergeFrontier(self):
+        (self.merged_map_, self.merged_frontiers_) = self.mergePeerFrontiers()
+        if self.merged_map_ == -1:
+            self.get_logger().warn('(testMergeFrontier): mergePeerFrontiers return -1')
+        if self.merged_map_ != -1:
+            self.get_logger().info('(testMergeFrontier): publish merged_map and merged_frontiers')
+            self.debug_merge_map_pub_.publish(self.merged_map_)
+            frontier_debug_map = self.generateFrontierDebugMap(self.merged_frontiers_, self.merged_map_)
+            self.debug_merge_frontiers_pub_.publish(frontier_debug_map)
 
     def mergePeerMap(self):
         #send service request to other nodes, block until got the map and frontiers  or timeout (2 seconds for now): self.merge_map_frontier_timeout_
@@ -443,7 +493,7 @@ class MultiExploreNode(Node):
                 if service_response_future[robot].done():
                     response = service_response_future[robot].result()
                     self.peer_map_[robot] = response.map
-                    print(self.peer_map_)
+                    # print(self.peer_map_)
                     self.peer_local_frontiers_[robot] = response.local_frontier
                     self.peer_data_updated_[robot] = True
                 else:
@@ -492,7 +542,10 @@ class MultiExploreNode(Node):
         map_frontier_merger.setLocalFrontiers(self.local_frontiers_msg_)
         map_frontier_merger.setPeerInformation(self.persistent_robot_peers_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.persistent_offset_from_peer_to_local_)
        
+
+        merge_t0 = time.time()
         merged_map = map_frontier_merger.mergeMap()
+        self.get_logger().error('merge map using time:{}'.format(time.time() - merge_t0))
         return merged_map
 
     def mergePeerFrontiers(self):
@@ -502,46 +555,132 @@ class MultiExploreNode(Node):
         service_response_future = dict()
         # always try to request and merge all the peers, no matter whether discovered at current timestep 
         # for robot in self.robot_peers_:
+        self.peer_map_.clear()
+        self.peer_local_frontiers_.clear()
         for robot in self.persistent_robot_peers_:
             service_name = robot + '/get_local_map_and_frontier'
             service_client_dict[robot] = self.create_client(GetLocalMapAndFrontier, service_name)
+            while not service_client_dict[robot].wait_for_service(timeout_sec=5.0):
+                self.get_logger().info('/get_local_map_and_frontier service not available, waiting again...')
             req = GetLocalMapAndFrontier.Request()
-            req.request_robot_name.data = self.robot_name_
-            service_response_future[robot] = service_client_dict[service_name].call_async(req)
-            rclpy.spin_once(self)
-            self.peer_data_updated_[robot] = False
-
-
-
-
-        # cache previous stored peer_map_, at least can be used for navigation
-        # self.peer_map_.clear()
-        self.peer_local_frontiers_.clear()
-        time_end = time.time() + self.merge_map_frontier_timeout_
-        while time.time() < time_end:
+            # req.request_robot_name.data = self.robot_name_
+            service_response_future[robot] = service_client_dict[robot].call_async(req)
+            # rclpy.spin_once(self)
+            # self.peer_data_updated_[robot] = False
+            # self.peer_map_[robot] = service_response_future[robot].map
+            # self.peer_local_frontiers_[robot] = service_response_future[robot].local_frontier
+            # self.peer_data_updated_[robot] = True
+        
+        # response = service_response_future[robot].result()
+        t_0 = time.time()
+        peer_update_done = False
+        while not peer_update_done and time.time() - t_0 < 3:
+            peer_update_done = True
             for robot in self.persistent_robot_peers_:
+                rclpy.spin_once(self)
+                self.get_logger().error('check service response future')
                 if service_response_future[robot].done():
                     response = service_response_future[robot].result()
                     self.peer_map_[robot] = response.map
+                    # print(self.peer_map_)
                     self.peer_local_frontiers_[robot] = response.local_frontier
                     self.peer_data_updated_[robot] = True
-            peer_update_done = True
-            for robot in self.persistent_robot_peers_:
-                if self.peer_data_updated_[robot] == False:
+                else:
                     peer_update_done = False
-                    break
-            # if all the peer robots are updated, then break, otherwise wait until timeout
-            if peer_update_done == True:
-                break                    
+
+
+
+
+        self.get_logger().warn('get service response!!!!!!!!!!!!!!!!!!')
+        # peer_update_done = True
+        # cache previous stored peer_map_, at least can be used for navigation
+        # self.peer_map_.clear()
+        # self.peer_local_frontiers_.clear()
+        # time_end = time.time() + self.merge_map_frontier_timeout_
+        # while time.time() < time_end: 
+        #     for robot in self.persistent_robot_peers_:
+        #         if service_response_future[robot].done():
+        #             response = service_response_future[robot].result()
+        #             self.peer_map_[robot] = response.map
+        #             self.peer_local_frontiers_[robot] = response.local_frontier
+        #             self.peer_data_updated_[robot] = True
+        #     peer_update_done = True
+        #     for robot in self.persistent_robot_peers_:
+        #         if self.peer_data_updated_[robot] == False:
+        #             peer_update_done = False
+        #             break
+        #     # if all the peer robots are updated, then break, otherwise wait until timeout
+        #     if peer_update_done == True:
+        #         break                    
+
+
+
+
+        if peer_update_done == True:
+            pass
+        else:
+            self.get_logger().error('could not get request response from peer robot, quit...')
+            return -1, -1
+
+
+        if self.inflated_local_map_ == None or len(self.local_frontiers_msg_) == 0:
+            return -1, -1
+
+
+
+
+
+
+
+
+
+
+        # #send service request to other nodes, block until got the map and frontiers  or timeout (2 seconds for now): self.merge_map_frontier_timeout_
+        # self.discoverRobotPeers()
+        # service_client_dict = dict()
+        # service_response_future = dict()
+        # # always try to request and merge all the peers, no matter whether discovered at current timestep 
+        # # for robot in self.robot_peers_:
+        # for robot in self.persistent_robot_peers_:
+        #     service_name = robot + '/get_local_map_and_frontier'
+        #     service_client_dict[robot] = self.create_client(GetLocalMapAndFrontier, service_name)
+        #     req = GetLocalMapAndFrontier.Request()
+        #     req.request_robot_name.data = self.robot_name_
+        #     service_response_future[robot] = service_client_dict[service_name].call_async(req)
+        #     rclpy.spin_once(self)
+        #     self.peer_data_updated_[robot] = False
+
+
+
+
+        # # cache previous stored peer_map_, at least can be used for navigation
+        # # self.peer_map_.clear()
+        # self.peer_local_frontiers_.clear()
+        # time_end = time.time() + self.merge_map_frontier_timeout_
+        # while time.time() < time_end:
+        #     for robot in self.persistent_robot_peers_:
+        #         if service_response_future[robot].done():
+        #             response = service_response_future[robot].result()
+        #             self.peer_map_[robot] = response.map
+        #             self.peer_local_frontiers_[robot] = response.local_frontier
+        #             self.peer_data_updated_[robot] = True
+        #     peer_update_done = True
+        #     for robot in self.persistent_robot_peers_:
+        #         if self.peer_data_updated_[robot] == False:
+        #             peer_update_done = False
+        #             break
+        #     # if all the peer robots are updated, then break, otherwise wait until timeout
+        #     if peer_update_done == True:
+        #         break                    
         
         #after collecting peer map and local_frontiers, start merging
         map_frontier_merger = MapAndFrontierMerger(self.robot_name_)
-        map_frontier_merger.setLocalMapFromFresh(self.local_map_)
+        map_frontier_merger.setLocalMapFromFresh(self.inflated_local_map_)
         map_frontier_merger.setLocalFrontiers(self.local_frontiers_msg_)
         map_frontier_merger.setPeerInformation(self.persistent_robot_peers_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.persistent_offset_from_peer_to_local_)
        
-        merged_frontiers = map_frontier_merger.mergeFrontiers()
-        return merged_frontiers
+        merged_map, merged_frontiers = map_frontier_merger.mergeMapAndFrontiers()
+        return merged_map, merged_frontiers
 
         
 
@@ -578,10 +717,10 @@ class MultiExploreNode(Node):
             self.updateWindowWFD() 
             if self.robot_name_ == 'tb0': 
                 if self.tic_ % 10 == 0:
-                    self.testMergeMap()
+                    self.testMergeFrontier()
             if self.robot_name_ == 'tb1':
                 if self.tic_ % 15 == 0:
-                    self.testMergeMap()               
+                    self.testMergeFrontier()               
             # self.name_timer_callback()           
             print('tic:{}'.format(self.tic_))  
             # self.get_logger().info('self.TEST_MERGE_MAP')

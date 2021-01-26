@@ -29,7 +29,7 @@ class MapAndFrontierMerger:
         self.local_frontiers_msg_ = None
         
         self.merged_map_ = None
-        self.merged_frontiers_ = None
+        self.merged_frontiers_ = []
 
 
         self.peer_robots_name_ = None
@@ -81,7 +81,7 @@ class MapAndFrontierMerger:
             # if self.peer_update_done_dict[peer_name] == True:
             #     pmap = self.peer_map_dict_[peer_name]
             #     self.merged_map_ = self.mapExpand(self.merged_map_, pmap, self.offset_from_peer_to_local_fixed[peer_name])
-            print(peer_map_dict)
+            # print(peer_map_dict)
             print('mergeMapFromFresh: pmap is received')
             #by not checking the update status of peer map, trust the possibly outdated peer map, since it can only be ever growing
             pmap = peer_map_dict[peer_name]
@@ -105,13 +105,68 @@ class MapAndFrontierMerger:
         pass
 
     def mergeMap(self):
-        self.merged_frontiers_ = None
+        self.merged_frontiers_ = []
 
         self.merged_map_ = self.mergeMapFromFresh(self.local_map_, self.peer_robots_name_, self.peer_map_dict_, self.peer_offset_)
         return self.merged_map_
 
+    def mergeMapAndFrontiers(self):
+        self.merged_frontiers_ = []
+        self.merged_map_ = self.mergeMapFromFresh(self.local_map_, self.peer_robots_name_, self.peer_map_dict_, self.peer_offset_)
+
+
+        resolution = self.merged_map_.info.resolution
+        offset_x = self.merged_map_.info.origin.position.x 
+        offset_y = self.merged_map_.info.origin.position.y 
+
+        merged_width = self.merged_map_.info.width
+        merged_height = self.merged_map_.info.height
+
+        merged_array = np.asarray(self.merged_map_.data, dtype=np.int8).reshape(merged_height, merged_width)
+
+        
+        for f_msg in self.local_frontiers_msg_: 
+            f = f_msg.frontier
+
+            for pt in f:
+                pt_cell_x = (int)((pt.point.x - offset_x) / resolution)
+                pt_cell_y = (int)((pt.point.y - offset_y) / resolution)
+                value = merged_array[pt_cell_y][pt_cell_x]
+                if value <= self.thres_ and value != -1:
+                    continue
+                elif value == -1:
+                    self.merged_frontiers_.append(f_msg)
+                    break
+
+        for peer_name, peer_frontiers in self.peer_local_frontiers_dict_.items():
+            peer_offset = self.peer_offset_[peer_name]
+            for f_msg in peer_frontiers: 
+                offset_f_msg = Frontier()
+                offset_f_msg = copy.deepcopy(f_msg)
+                offset_f = offset_f_msg.frontier
+                
+                for pt in offset_f:
+                    pt.header.frame_id = self.local_map_.header.frame_id
+                    pt.point.x = pt.point.x + peer_offset[0]
+                    pt.point.y = pt.point.y + peer_offset[1]
+
+
+                for pt in offset_f:
+                    pt_cell_x = (int)((pt.point.x - offset_x) / resolution)
+                    pt_cell_y = (int)((pt.point.y - offset_y) / resolution)
+                    value = merged_array[pt_cell_y][pt_cell_x]
+                    if value <= self.thres_ and value != -1:
+                        continue
+                    elif value == -1:
+
+                        self.merged_frontiers_.append(offset_f_msg)
+                        break
+
+        return self.merged_map_, self.merged_frontiers_
+        
+
     def mergeFrontiers(self):
-        self.merged_frontiers_ = None
+        self.merged_frontiers_ = []
         self.merged_map_ = self.mergeMapFromFresh(self.local_map_, self.peer_robots_name_, self.peer_map_dict_, self.peer_offset_)
 
         resolution = self.merged_map_.info.resolution
@@ -316,6 +371,8 @@ class MapAndFrontierMerger:
         input_origin_to_output_origin_y_cell = (int)((output_origin_y - input_map.info.origin.position.y) / input_map.info.resolution)
         print('input_origin_to_output_origin_x_cell:{}'.format(input_origin_to_output_origin_x_cell))
         print('input_origin_to_output_origin_y_cell:{}'.format(input_origin_to_output_origin_y_cell))
+
+        
         for x in range(input_dw):
             for y in range(input_dh): 
                 new_x = x - input_origin_to_output_origin_x_cell
