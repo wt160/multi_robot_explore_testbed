@@ -363,22 +363,25 @@ class MapAndFrontierMerger:
         output_map.info.origin.position.y = output_origin_y
         print('output_origin_x:{}'.format(output_origin_x))
         print('output_origin_y:{}'.format(output_origin_y))
-        input_array = np.array(input_map.data)
+        input_array = np.asarray(input_map.data, dtype=np.int8).reshape(input_dh, input_dw)
         output_map.data = []
-        output_array = np.zeros((1, output_width_cell * output_height_cell), dtype=np.int8)
+        # output_array = np.zeros((1, output_width_cell * output_height_cell), dtype=np.int8)
+
+        output_array = np.zeros((output_height_cell, output_width_cell), dtype=np.int8)
         output_array[:] = -1
         input_origin_to_output_origin_x_cell = (int)((output_origin_x - input_map.info.origin.position.x) / input_map.info.resolution)
         input_origin_to_output_origin_y_cell = (int)((output_origin_y - input_map.info.origin.position.y) / input_map.info.resolution)
         print('input_origin_to_output_origin_x_cell:{}'.format(input_origin_to_output_origin_x_cell))
         print('input_origin_to_output_origin_y_cell:{}'.format(input_origin_to_output_origin_y_cell))
 
-        
-        for x in range(input_dw):
-            for y in range(input_dh): 
-                new_x = x - input_origin_to_output_origin_x_cell
-                new_y = y - input_origin_to_output_origin_y_cell
-                input_value = input_array[y*input_dw + x]
-                output_array[0, new_y*output_width_cell + new_x] = input_value
+
+        output_array[-input_origin_to_output_origin_y_cell : input_dh - input_origin_to_output_origin_y_cell, - input_origin_to_output_origin_x_cell : input_dw - input_origin_to_output_origin_x_cell] = input_array
+        # for x in range(input_dw):
+        #     for y in range(input_dh): 
+        #         new_x = x - input_origin_to_output_origin_x_cell
+        #         new_y = y - input_origin_to_output_origin_y_cell
+        #         input_value = input_array[y, x]
+        #         output_array[0, new_y*output_width_cell + new_x] = input_value
         
         target_origin_x_in_input_frame = offset_x + target_map.info.origin.position.x
         target_origin_y_in_input_frame = offset_y + target_map.info.origin.position.y
@@ -386,23 +389,37 @@ class MapAndFrontierMerger:
         #output_origin_x_cell - input_origin_x_cell
         target_origin_to_output_origin_y_cell_in_input_frame = (int)((output_origin_y - target_origin_y_in_input_frame) / input_map.info.resolution)    
         #output_origin_y_cell - input_origin_y_cell
-        target_array = np.array(target_map.data)
-        for x in range(target_dw):
-            for y in range(target_dh):
-                new_x = x - target_origin_to_output_origin_x_cell_in_input_frame
-                new_y = y - target_origin_to_output_origin_y_cell_in_input_frame
-                target_value = target_array[y*target_dw + x]
-                new_idx = new_y*output_width_cell + new_x
-                previous_value = output_array[0, new_idx]
-                if previous_value < self.thres_:                    
-                    if target_value > self.thres_:
-                        output_array[0, new_idx] = target_value
-                    elif target_value != -1:
-                        if previous_value == -1:
-                            output_array[0, new_idx] = target_value
-                        else:
-                            if target_value < previous_value:
-                                output_array[0, new_idx] = target_value
+        target_array = np.asarray(target_map.data, dtype=np.int8).reshape(target_dh, target_dw)
+
+
+        previous_array = output_array[- target_origin_to_output_origin_y_cell_in_input_frame: target_dh - target_origin_to_output_origin_y_cell_in_input_frame , - target_origin_to_output_origin_x_cell_in_input_frame : target_dw - target_origin_to_output_origin_x_cell_in_input_frame ]
+
+
+        previous_unknown_index = np.where(previous_array==-1)
+        previous_array[previous_unknown_index] = target_array[previous_unknown_index]
+        target_obs_index = np.where(target_array>self.thres_)
+        previous_array[target_obs_index] = target_array[target_obs_index]
+
+        previous_array[np.where(np.logical_and(previous_array>-1, previous_array <= self.thres_))] = 0
+
+
+        # for x in range(target_dw):
+        #     for y in range(target_dh):
+        #         new_x = x - target_origin_to_output_origin_x_cell_in_input_frame
+        #         new_y = y - target_origin_to_output_origin_y_cell_in_input_frame
+        #         target_value = target_array[y, x]
+        #         new_idx = new_y*output_width_cell + new_x
+        #         previous_value = output_array[new_y, new_x]
+        #         if previous_value < self.thres_:                    
+        #             if target_value > self.thres_:
+        #                 output_array[new_y, new_x] = target_value
+        #             elif target_value != -1:
+        #                 if previous_value == -1:
+        #                     output_array[new_y, new_x] = target_value
+        #                 else:
+        #                     if target_value < previous_value:
+        #                         output_array[new_y, new_x] = target_value
+
 
         output_map.data = output_array.ravel().tolist()
         return output_map

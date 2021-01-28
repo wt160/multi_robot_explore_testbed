@@ -679,7 +679,9 @@ class MultiExploreNode(Node):
         map_frontier_merger.setLocalFrontiers(self.local_frontiers_msg_)
         map_frontier_merger.setPeerInformation(self.persistent_robot_peers_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.persistent_offset_from_peer_to_local_)
        
+        merge_t0 = time.time()
         merged_map, merged_frontiers = map_frontier_merger.mergeMapAndFrontiers()
+        self.get_logger().error('merge map using time:{}'.format(time.time() - merge_t0))
         return merged_map, merged_frontiers
 
         
