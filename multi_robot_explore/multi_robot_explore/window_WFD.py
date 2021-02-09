@@ -19,7 +19,7 @@ class WindowWFD:
         self.thres_ = free_threshold
         self.e_util = ExploreUtil()
 
-    def getLocalFrontiers(self):
+    def getWindowFrontiers(self):
         frontier_list = []
         covered_set = set()
         offset_x = self.raw_map_.info.origin.position.x

@@ -1,24 +1,27 @@
 #! /usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.action import ActionClient
+from nav2_msgs.action import ComputePathToPose
 from rclpy.duration import Duration
 import time
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import PoseStamped
 from rclpy.qos import QoSProfile
 from rclpy.qos import qos_profile_sensor_data
 from threading import Thread
 from tf2_ros import LookupException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from geometry_msgs.msg import Twist
-
+from geometry_msgs.msg import Twist, PoseStamped
 class RobotControlInterface(Node):
     def __init__(self, robot_name):
         super().__init__(robot_name + '_control_node')
         
         self.cmd_vel_pub_ = self.create_publisher(Twist, robot_name + '/cmd_vel', 10)
-        pass
-    
+        self.compute_path_client_ = ActionClient(self, ComputePathToPose, robot_name + '/compute_path_to_pose')
+        self.get_path_result = None
+        self.get_path_done = False
     def debugPrint(self):
         print('RobotControlInterface: debug')
 
@@ -31,6 +34,48 @@ class RobotControlInterface(Node):
         t.angular.y = 0.0
         t.angular.z = v_w
         self.cmd_vel_pub_.publish(t)
+
+    def getPathLengthToPose(self, target_pose):
+        self.get_path_done = False
+        target_pose_stamped = PoseStamped()
+        target_pose_stamped.pose = target_pose
+        goal_msg = ComputePathToPose.Goal()
+        goal_msg.pose = target_pose_stamped
+        goal_msg.planner_id = 'GridBased'
+        self.compute_path_client_.wait_for_server()
+        # send_goal_async test
+        self.send_goal_future = self.compute_path_client_.send_goal_async(goal_msg)
+        self.send_goal_future.add_done_callback(self.getPathLengthResponseCallback)
+        return self.send_goal_future
+        #send_goal test
+        # result = self.compute_path_client_.send_goal(goal_msg)
+        # path = result.path
+        # return len(path.poses)
+
+    def getPathLengthResponseCallback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('GetPathLengthGoal rejected')
+            return
+        self.get_logger().info('GetPathLengthGoal accepted')
+        self.get_result_future = goal_handle.get_result_async()
+        self.get_result_future.add_done_callback(self.getPathLengthResultCallback)
+    
+
+    def getPathLengthResultCallback(self, future):
+        result = future.result().result
+        self.get_logger().info('get the getPathLength result')
+        self.get_path_result = len(result.path.poses)
+        self.get_path_done = True
+
+    def getPathLength(self):
+        return self.get_path_result
+
+    def stopAtPlace(self):
+        self.sendCmdVel(0.0, 0.0, 0.0)
+
+
+
 
     def rotateNCircles(self, n, v_w):
         t_0 = time.time()

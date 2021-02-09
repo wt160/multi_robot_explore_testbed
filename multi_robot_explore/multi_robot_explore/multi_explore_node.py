@@ -30,6 +30,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 
 from geometry_msgs.msg import PointStamped
+from geometry_msgs.msg import Pose
 from multi_robot_interfaces.msg import Frontier
 from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier
 from robot_control_interface.robot_control_node import RobotControlInterface
@@ -127,6 +128,9 @@ class MultiExploreNode(Node):
         self.r_interface_ = RobotControlInterface(self.robot_name_)
         self.r_interface_.debugPrint()
         self.tic_ = 0
+
+        #support function update()
+        self.window_frontiers = None
         
     def setPeerName(self, peer_name):
         self.beacon_peers_.append(peer_name)
@@ -206,7 +210,7 @@ class MultiExploreNode(Node):
             # self.get_logger().info('Got {}'.format(repr(transform)))
             self.current_pos_ = (transform.transform.translation.x, transform.transform.translation.y)
             t_1 = time.time()
-            self.get_logger().info('(updateWindowWFD): robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
+            self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
             
             return True
         except LookupException as e:
@@ -253,18 +257,21 @@ class MultiExploreNode(Node):
         mutex.release()
 
         
-
-    #detect window_WFD and integrate with global frontiers
-
-    def updateWindowWFD(self):
+    #return 
+    # -1 : no inflated_local_map
+    # -2 : can not get robot current pose from tf
+    # temp_window_frontiers_ , if empty, then no window_frontiers detected
+    def getWindowFrontiers(self):
         mutex = Lock()
         mutex.acquire()
+        temp_window_frontiers_ = []
+        temp_window_frontiers_msg_ = []
         if self.inflated_local_map_ == None or self.inflated_local_map_ == OccupancyGrid():
-            self.get_logger().error('(updateWindowWFD): no inflated_local_map')
-            return
-        self.get_logger().info('(updateWindowWFD): init')
+            self.get_logger().error('(getWindowFrontiers): no inflated_local_map')
+            return -1
+        self.get_logger().info('(getWindowFrontiers): init')
         if self.getRobotCurrentPos():
-            # self.get_logger().warn('(updateWindowWFD): start window_wfd!!!')
+            # self.get_logger().warn('(updateLocalFrontiersUsingWindowWFD): start window_wfd!!!')
             current_map = OccupancyGrid()
             current_map.header = self.inflated_local_map_.header
             current_map.info = self.inflated_local_map_.info
@@ -273,13 +280,13 @@ class MultiExploreNode(Node):
             # if self.DEBUG_ == True:
                 # self.inflated_map_pub_.publish(current_map)
             t_0 = time.time()
-            local_frontiers_cell, covered_set = window_wfd.getLocalFrontiers()
-
+            window_frontiers_cell, covered_set = window_wfd.getWindowFrontiers()
             t_1 = time.time()
-            temp_local_frontiers_ = []
-            temp_local_frontiers_msg_ = []
-            self.get_logger().info('(updateWindowWFD)local_frontiers_cell size:{}, used time:{}'.format(len(local_frontiers_cell), t_1 - t_0))
-            for f_connect_cell in local_frontiers_cell:
+
+            # transform local_frontiers from the cell format to absolute position in 'double', because the cell could change due to map expansion
+            
+            self.get_logger().info('(getWindowFrontiers)window_frontiers_cell size:{}, used time:{}'.format(len(window_frontiers_cell), t_1 - t_0))
+            for f_connect_cell in window_frontiers_cell:
                 f_connect = []
                 f_msg = Frontier()
                 for f_cell in f_connect_cell:
@@ -291,11 +298,58 @@ class MultiExploreNode(Node):
                     pt_stamped.point.y = f_double[1]
                     pt_stamped.point.z = 0.0
                     f_msg.frontier.append(pt_stamped)
-                temp_local_frontiers_msg_.append(f_msg)
-                temp_local_frontiers_.append(f_connect)
+                temp_window_frontiers_msg_.append(f_msg)
+                temp_window_frontiers_.append(f_connect)
+        else:
+            self.get_logger().error('(getWindowFrontiers): failed to get robot current pos')
+            return -2
+        mutex.release()
+        return temp_window_frontiers_
 
-            #update self.local_frontiers_msg and self.local_frontiers_ with temp_local_frontiers_ , temp_local_frontiers_msg_
-            self.updateLocalFrontiers(temp_local_frontiers_, temp_local_frontiers_msg_, window_wfd.window_size_, self.current_pos_, current_map, covered_set)
+    #detect window_WFD and integrate with local frontiers, will update self.local_frontiers_
+    def updateLocalFrontiersUsingWindowWFD(self):
+        mutex = Lock()
+        mutex.acquire()
+        temp_window_frontiers_ = []
+        temp_window_frontiers_msg_ = []
+        if self.inflated_local_map_ == None or self.inflated_local_map_ == OccupancyGrid():
+            self.get_logger().error('(updateLocalFrontiersUsingWindowWFD): no inflated_local_map')
+            return -1
+        self.get_logger().info('(updateLocalFrontiersUsingWindowWFD): init')
+        if self.getRobotCurrentPos():
+            # self.get_logger().warn('(updateLocalFrontiersUsingWindowWFD): start window_wfd!!!')
+            current_map = OccupancyGrid()
+            current_map.header = self.inflated_local_map_.header
+            current_map.info = self.inflated_local_map_.info
+            current_map.data = list(self.inflated_local_map_.data)
+            window_wfd = WindowWFD(current_map, self.current_pos_, 150)
+            # if self.DEBUG_ == True:
+                # self.inflated_map_pub_.publish(current_map)
+            t_0 = time.time()
+            window_frontiers_cell, covered_set = window_wfd.getWindowFrontiers()
+            t_1 = time.time()
+
+            # transform local_frontiers from the cell format to absolute position in 'double', because the cell could change due to map expansion
+            
+            self.get_logger().info('(updateLocalFrontiersUsingWindowWFD)window_frontiers_cell size:{}, used time:{}'.format(len(window_frontiers_cell), t_1 - t_0))
+            for f_connect_cell in window_frontiers_cell:
+                f_connect = []
+                f_msg = Frontier()
+                for f_cell in f_connect_cell:
+                    f_double = (f_cell[0]*current_map.info.resolution + current_map.info.origin.position.x, f_cell[1]*current_map.info.resolution + current_map.info.origin.position.y)
+                    f_connect.append(f_double)
+                    pt_stamped = PointStamped()
+                    pt_stamped.header = current_map.header
+                    pt_stamped.point.x = f_double[0]
+                    pt_stamped.point.y = f_double[1]
+                    pt_stamped.point.z = 0.0
+                    f_msg.frontier.append(pt_stamped)
+                temp_window_frontiers_msg_.append(f_msg)
+                temp_window_frontiers_.append(f_connect)
+
+
+            #update self.local_frontiers_msg and self.local_frontiers_ with temp_window_frontiers_ , temp_window_frontiers_msg_
+            self.updateLocalFrontiers(temp_window_frontiers_, temp_window_frontiers_msg_, window_wfd.window_size_, self.current_pos_, current_map, covered_set)
 
             #DEBUG
             if self.DEBUG_:
@@ -303,7 +357,7 @@ class MultiExploreNode(Node):
                 local_map_dw = current_map.info.width
                 local_map_dh = current_map.info.height
                 frontiers_index_list = []
-                # for f_connect in local_frontiers_cell:
+                # for f_connect in window_frontiers_cell:
                 #     for f_cell in f_connect:
                 #         frontiers_index_list.append(f_cell[1]*local_map_dw + f_cell[0])
                 for f_connect in self.local_frontiers_:
@@ -331,14 +385,14 @@ class MultiExploreNode(Node):
                 # print(len(frontier_map_array))
                 # frontier_map_array[:] = (int)(-1)
 
-                # for f_connect in local_frontiers_cell:
+                # for f_connect in window_frontiers_cell:
                 #     for f_cell in f_connect:
                 #         frontier_map_array[(int)(f_cell[0])][(int)(f_cell[1])] = (int)(0)
                 # print(len(frontier_map_array[frontier_map_array!=0]))
 
                 # frontier_map_array.astype(int)
                 # frontier_debug_map.data = frontier_map_array.ravel().tolist()
-                # for f_connect in local_frontiers_cell:
+                # for f_connect in window_frontiers_cell:
                 #     for f_cell in f_connect:
                 #         frontier_map_array[(int)(f_cell[0])][(int)(f_cell[1])] = (int)(0)
                 # print(len(frontier_map_array[frontier_map_array!=0]))
@@ -372,9 +426,11 @@ class MultiExploreNode(Node):
                 #DEBUG
 
         else:
-            self.get_logger().error('(updateWindowWFD): failed to get robot current pos')
-        self.get_logger().info('(updateWindowWFD): end')
+            self.get_logger().error('(updateLocalFrontiersUsingWindowWFD): failed to get robot current pos')
+            return -2
+        self.get_logger().info('(updateLocalFrontiersUsingWindowWFD): end')
         mutex.release()
+        return temp_window_frontiers_
 
     def generateFrontierDebugMap(self, frontier_msg_list, current_map):
         local_map_dw = current_map.info.width
@@ -686,54 +742,148 @@ class MultiExploreNode(Node):
 
         
 
-    def update(self):
+    def updateSingle(self):
         #state of current robot: GOING_TO_TARGET, WAITING_NEW_TARGET, REACH_TARGET, FINISH_TARGET_WINDOW_NOT_DONE, 
         if self.current_state_ == self.SYSTEM_INIT:
             #robot rotate inplace
-            # self.r_interface_.rotateNCircles(1, 0.1)
+            self.get_logger().error('Enter SYSTEM_INIT')
+            self.r_interface_.rotateNCircles(1, 0.1)
             # self.updateWindowWFD()
-            self.current_state_ = self.TEST_MERGE_MAP
-            #self.current_state_ = self.CHECK_ENVIRONMENT
-            pass
+            self.r_interface_.stopAtPlace()
+            #self.current_state_ = self.TEST_MERGE_MAP
+            self.current_state_ = self.CHECK_ENVIRONMENT
         elif self.current_state_ == self.GOING_TO_TARGET:
-            #call navigation stack to move the robot
+            #call navigation stack to move the robot       
             #block during movement
             #after reach the target, find new target
             self.current_state_ = self.CHECK_ENVIRONMENT
             pass
         elif self.current_state_ == self.CHECK_ENVIRONMENT:
+            self.get_logger().error('Enter CHECK_ENVIRONMENT')
+            #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
+            #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
+            self.window_frontiers = self.updateLocalFrontiersUsingWindowWFD()
+            if self.window_frontiers == -1 or self.window_frontiers == -2:
+                self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers')
+                self.current_state_ = self.CHECK_ENVIRONMENT
+            else:
+                if len(self.window_frontiers) == 0:
+                    self.current_state_ = self.FINISH_TARGET_WINDOW_DONE
+                else:
+                    self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
 
-            #check current local_frontiers, if local_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
-            #if local_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
-            pass
+            
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_DONE:
+            self.get_logger().error('Enter FINISH_TARGET_WINDOW_DONE')
             #request frontiers from other robots, and merge, get new assignment of frontiers
             pass
-        elif self.current_state_ == self.FINISH_TARGET_WINDOW_NOT_DONE:
+        elif self.current_state_ == self.FINISH_TARGET_WINDOW_NOT_DONE:            
+            #go to the nearest frontier
+            self.get_logger().error('Enter FINISH_TARGET_WINDOW_NOT_DONE')
+            min_length = 1000000
+            choose_target_map = copy.deepcopy(self.inflated_local_map_)
+            for f_connect in self.window_frontiers:
+                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 5)
+                target_pose = Pose()
+                target_pose.position.x = target_pt[0]
+                target_pose.position.y = target_pt[1]
+                target_pose.position.z = 0.0
+                curr_pose = Pose()
+                curr_pose.position.x = self.current_pos_[0]
+                curr_pose.position.y = self.current_pos_[1]
+                curr_pose.position.z = 0.0
+                target_pose = self.e_util.getDirectionalPose(curr_pose, target_pose)
+                print('before get path length')
+                self.r_interface_.getPathLengthToPose(target_pose)
+                while self.r_interface_.get_path_done  == False:
+                    pass
+                length = self.r_interface_.getPathLength()
+                self.get_logger().warn('getPathLength:{}'.format(length))
+                if length < min_length:
+                    min_length = length
+            self.get_logger().warn('min PathLength:{}'.format(min_length))
 
-            #decide whether global information is needed, 
-            #if needed, request frontiers from other robots, and merge ,get new assignment of frontiers
-            self.current_state_ = self.GOING_TO_TARGET
-            pass
+
+            
+            self.current_state_ = self.SYSTEM_SHUTDOWN
         elif self.current_state_ == self.TEST_MERGE_MAP:
-            self.updateWindowWFD() 
+            self.updateLocalFrontiersUsingWindowWFD() 
             if self.robot_name_ == 'tb0': 
                 if self.tic_ % 10 == 0:
-                    self.testMergeFrontier()
+                    self.testMergeFrontier() 
             if self.robot_name_ == 'tb1':
                 if self.tic_ % 15 == 0:
                     self.testMergeFrontier()               
             # self.name_timer_callback()           
-            print('tic:{}'.format(self.tic_))  
+            print('tic:{}'.format(self.tic_))   
             # self.get_logger().info('self.TEST_MERGE_MAP')
             self.tic_ = self.tic_ + 1
             self.current_state_ = self.TEST_MERGE_MAP
-        elif self.current_state_ == self.SYSTEM_SHUTDOWN:
-            return self.SYSTEM_SHUTDOWN
+        elif self.current_state_ == self.SYSTEM_SHUTDOWN:  
+            return self.SYSTEM_SHUTDOWN  
+
+    def updateMulti(self):
+        #state of current robot: GOING_TO_TARGET, WAITING_NEW_TARGET, REACH_TARGET, FINISH_TARGET_WINDOW_NOT_DONE, 
+        if self.current_state_ == self.SYSTEM_INIT:
+            #robot rotate inplace
+            self.r_interface_.rotateNCircles(1, 0.1)
+            # self.updateWindowWFD()
+            
+            #self.current_state_ = self.TEST_MERGE_MAP
+            self.current_state_ = self.CHECK_ENVIRONMENT
+            pass
+        elif self.current_state_ == self.GOING_TO_TARGET:
+            #call navigation stack to move the robot       
+            #block during movement
+            #after reach the target, find new target
+            self.current_state_ = self.CHECK_ENVIRONMENT
+            pass
+        elif self.current_state_ == self.CHECK_ENVIRONMENT:
+            #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
+            #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
+            self.window_frontiers = self.getWindowFrontiers()
+            if self.window_frontiers == -1 or self.window_frontiers == -2:
+                self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers')
+                self.current_state_ = self.CHECK_ENVIRONMENT
+            else:
+                if len(self.window_frontiers) == 0:
+                    self.current_state_ = self.FINISH_TARGET_WINDOW_DONE
+                else:
+                    self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
+
+            
+        elif self.current_state_ == self.FINISH_TARGET_WINDOW_DONE:
+            #request frontiers from other robots, and merge, get new assignment of frontiers
+            pass
+        elif self.current_state_ == self.FINISH_TARGET_WINDOW_NOT_DONE:            
+            #decide whether global information is needed, 
+            #if needed, request frontiers from other robots, and merge ,get new assignment of frontiers
+
+
+            #not requesting from other robots
+            
+            
+            self.current_state_ = self.GOING_TO_TARGET
+            pass
+        elif self.current_state_ == self.TEST_MERGE_MAP:
+            self.updateLocalFrontiersUsingWindowWFD() 
+            if self.robot_name_ == 'tb0': 
+                if self.tic_ % 10 == 0:
+                    self.testMergeFrontier() 
+            if self.robot_name_ == 'tb1':
+                if self.tic_ % 15 == 0:
+                    self.testMergeFrontier()               
+            # self.name_timer_callback()           
+            print('tic:{}'.format(self.tic_))   
+            # self.get_logger().info('self.TEST_MERGE_MAP')
+            self.tic_ = self.tic_ + 1
+            self.current_state_ = self.TEST_MERGE_MAP
+        elif self.current_state_ == self.SYSTEM_SHUTDOWN:  
+            return self.SYSTEM_SHUTDOWN  
     
 
         
-        
+         
         
         
 
@@ -745,7 +895,7 @@ def main(args=None):
     explore_node = MultiExploreNode(robot_name)
     executor = MultiThreadedExecutor(8)
     executor.add_node(explore_node)
-
+    executor.add_node(explore_node.r_interface_)
     
     spin_thread = Thread(target=executor.spin)
     # spin_thread = Thread(target=rclpy.spin, args=(explore_node,))
@@ -759,7 +909,7 @@ def main(args=None):
     explore_node.initRobotUtil()
     # input('({})press to continue'.format(robot_name))
     while rclpy.ok():
-        state = explore_node.update()
+        state = explore_node.updateSingle()
 
         if state == explore_node.SYSTEM_SHUTDOWN:
             break

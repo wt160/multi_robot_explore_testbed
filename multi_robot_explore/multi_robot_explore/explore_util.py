@@ -1,12 +1,77 @@
 #! /usr/bin/env python3
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import Pose
 import random
 import numpy as np
 import math
 class ExploreUtil:
     def __init__(self):
-        pass 
+        self.center_to_circle_map = {}
+        self.dist_limit = 80
+        for length in range(1, self.dist_limit):
+            circle = []
+            degree_increment = 360.0 / (2 * 3.14 * length)
+            for i in range(math.floor(360.0 / degree_increment)):
+                rad = i * degree_increment / 180.0 * 3.14159
+                x = math.floor(math.cos(rad) * length)
+                y = math.floor(math.sin(rad) * length)
+                circle.append((x, y))
+            self.center_to_circle_map[length] = circle
+        
+
+    def euler_from_quaternion(self, quaternion):
+        """
+        Converts quaternion (w in last place) to euler roll, pitch, yaw
+        quaternion = [x, y, z, w]
+        Bellow should be replaced when porting for ROS 2 Python tf_conversions is done.
+        """
+        x = quaternion.x
+        y = quaternion.y
+        z = quaternion.z
+        w = quaternion.w
+
+        sinr_cosp = 2 * (w * x + y * z)
+        cosr_cosp = 1 - 2 * (x * x + y * y)
+        roll = np.arctan2(sinr_cosp, cosr_cosp)
+
+        sinp = 2 * (w * y - z * x)
+        pitch = np.arcsin(sinp)
+
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y * y + z * z)
+        yaw = np.arctan2(siny_cosp, cosy_cosp)
+
+        return roll, pitch, yaw
     
+    def quaternion_from_euler(self, roll, pitch, yaw):
+        """
+        Converts euler roll, pitch, yaw to quaternion (w in last place)
+        quat = [x, y, z, w]
+        Bellow should be replaced when porting for ROS 2 Python tf_conversions is done.
+        """
+        cy = math.cos(yaw * 0.5)
+        sy = math.sin(yaw * 0.5)
+        cp = math.cos(pitch * 0.5)
+        sp = math.sin(pitch * 0.5)
+        cr = math.cos(roll * 0.5)
+        sr = math.sin(roll * 0.5)
+
+        q = [0] * 4
+        q[0] = cy * cp * cr + sy * sp * sr
+        q[1] = cy * cp * sr - sy * sp * cr
+        q[2] = sy * cp * sr + cy * sp * cr
+        q[3] = sy * cp * cr - cy * sp * sr
+
+        return q
+        
+    def isCellObs(self, map, x_cell, y_cell):
+        idx = (int)(y_cell * map.info.width + x_cell)
+        value = map.data[idx]
+        if value >= 100:
+            return True
+        else:
+            return False
+
     def isCellFree(self, map, x_cell, y_cell, free_thres=0):
         idx = (int)(y_cell * map.info.width + x_cell)
         value = map.data[idx]
@@ -16,6 +81,70 @@ class ExploreUtil:
         else:
             return False
 
+    def getShortestDistFromPtToObs(self, cell, map):
+        
+        for dist in range(1, self.dist_limit):
+            circle = self.center_to_circle_map[dist]
+            for pt in circle:
+                cell_pt = (cell[0] + pt[0], cell[1] + pt[1])
+                idx = (int)(cell_pt[1] * map.info.width + cell_pt[0])
+                if idx > len(map.data) -1:
+                    continue 
+                if self.isCellObs(map, cell_pt[0], cell_pt[1]):
+                    return dist
+                
+        return self.dist_limit
+
+
+    def getObservePtForFrontiers(self, f_connect, map, radius):
+        max_dist = -1
+        max_cell = None
+        for pt in f_connect:
+            pt_cell = ((int)((pt[0] - map.info.origin.position.x) / map.info.resolution) ,  (int)((pt[1] - map.info.origin.position.y) / map.info.resolution))
+            dist = self.getShortestDistFromPtToObs(pt_cell, map)
+            print('(getObservePtForFrontiers) {}'.format(dist))
+            if dist > max_dist:
+                max_dist = dist
+                max_cell = pt_cell
+        
+        observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 1, radius)
+        observe_pt = (observe_pt_cell[0]*map.info.resolution + map.info.origin.position.x, observe_pt_cell[1]*map.info.resolution + map.info.origin.position.y)
+        return observe_pt
+            
+    def getDirectionalPose(self, curr_pose, goal_pose):
+        result = Pose()
+        result.position.x = goal_pose.position.x
+        result.position.y = goal_pose.position.y
+        result.position.z = goal_pose.position.z
+        yaw = math.atan2(goal_pose.position.y - curr_pose.position.y, goal_pose.position.x - curr_pose.position.x)
+        quat = self.quaternion_from_euler(0, 0, yaw)
+        result.orientation.x = quat[0]
+        result.orientation.y = quat[1]
+        result.orientation.z = quat[2]
+        result.orientation.w = quat[3]
+        return result
+
+
+
+    #curr: robot current pose
+    #goal: goal pose without orientation information, will return a goal pose with orientation pointing from base to goal for ease of robot navigation
+    # geometry_msgs::Pose getDirectionalPose(geometry_msgs::Pose curr, geometry_msgs::Pose goal){
+    #     tf::Quaternion q1;
+    #     double yaw = atan2(goal.position.y - curr.position.y, goal.position.x - curr.position.x);
+    #     q1.setRPY(0, 0, yaw);
+    #     geometry_msgs::Pose result;
+    #     result.position.x = goal.position.x;
+    #     result.position.y = goal.position.y;
+    #     result.position.z = goal.position.z;
+    #     result.orientation.x = q1.x();
+    #     result.orientation.y = q1.y();
+    #     result.orientation.z = q1.z();
+    #     result.orientation.w = q1.w();
+    #     return result;
+
+    # }
+
+    #min_radius, max_radius: the unit is cell, not double
     def getFreeNeighborRandom(self, cell, map, min_radius, max_radius, free_thres=0):
         r = 0.0
         theta = 0.0
