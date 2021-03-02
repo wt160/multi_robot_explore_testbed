@@ -1,0 +1,4 @@
+std_msgs/String request_robot_name
+---
+nav_msgs/OccupancyGrid map
+multi_robot_interfaces/Frontier[] local_frontier

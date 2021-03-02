@@ -1,0 +1,6 @@
+std_msgs/String robot_name
+geometry_msgs/Pose robot_pose_world_frame
+float32 battery_level
+uint32 current_state
+geometry_msgs/Pose current_target_pose
+uint32 pid

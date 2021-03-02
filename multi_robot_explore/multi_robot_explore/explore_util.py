@@ -11,13 +11,18 @@ class ExploreUtil:
         for length in range(1, self.dist_limit):
             circle = []
             degree_increment = 360.0 / (2 * 3.14 * length)
-            for i in range(math.floor(360.0 / degree_increment)):
+            for i in range(0, math.floor(360.0 / degree_increment), 3):
                 rad = i * degree_increment / 180.0 * 3.14159
                 x = math.floor(math.cos(rad) * length)
                 y = math.floor(math.sin(rad) * length)
                 circle.append((x, y))
             self.center_to_circle_map[length] = circle
         
+        self.NAVIGATION_DONE = 0
+        self.NAVIGATION_FAILED = 1
+        self.NAVIGATION_MOVING = 2
+        self.NAVIGATION_NO_GOAL = 3
+
 
     def euler_from_quaternion(self, quaternion):
         """
@@ -83,7 +88,7 @@ class ExploreUtil:
 
     def getShortestDistFromPtToObs(self, cell, map):
         
-        for dist in range(1, self.dist_limit):
+        for dist in range(1, self.dist_limit, 5):
             circle = self.center_to_circle_map[dist]
             for pt in circle:
                 cell_pt = (cell[0] + pt[0], cell[1] + pt[1])
@@ -116,7 +121,8 @@ class ExploreUtil:
         result.position.x = goal_pose.position.x
         result.position.y = goal_pose.position.y
         result.position.z = goal_pose.position.z
-        yaw = math.atan2(goal_pose.position.y - curr_pose.position.y, goal_pose.position.x - curr_pose.position.x)
+        # yaw = math.atan2(goal_pose.position.y - curr_pose.position.y, goal_pose.position.x - curr_pose.position.x)
+        yaw = math.atan2(curr_pose.position.y - goal_pose.position.y, curr_pose.position.x - goal_pose.position.x)
         quat = self.quaternion_from_euler(0, 0, yaw)
         result.orientation.x = quat[0]
         result.orientation.y = quat[1]
@@ -145,7 +151,7 @@ class ExploreUtil:
     # }
 
     #min_radius, max_radius: the unit is cell, not double
-    def getFreeNeighborRandom(self, cell, map, min_radius, max_radius, free_thres=0):
+    def getFreeNeighborRandom(self, cell, map, min_radius, max_radius, free_thres=50):
         r = 0.0
         theta = 0.0
         condition = True
@@ -156,7 +162,7 @@ class ExploreUtil:
             neigh = (cell[0] + (int)(r * math.cos(theta)) , cell[1] + (int)(r * math.sin(theta)))
             # neigh[0] = cell[0] + (int)(r * math.cos(theta))
             # neigh[1] = cell[1] + (int)(r * math.sin(theta))
-            # print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
+            print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
             if self.isCellFree(map, neigh[0], neigh[1], free_thres):
                 condition = False
         

@@ -1,5 +1,6 @@
 from setuptools import setup
-
+import os
+from glob import glob
 package_name = 'multi_robot_explore'
 
 setup(
@@ -10,6 +11,8 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name), glob('param/*.yaml')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -22,6 +25,7 @@ setup(
         'console_scripts': [
             'multi_explorer = multi_robot_explore.multi_explore_node:main',
             'get_robot_pose = multi_robot_explore.get_robot_pose_from_tf:main',
+            'robot_registry = multi_robot_explore.robot_registry_node:main',
         ],
     },
 )

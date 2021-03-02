@@ -28,8 +28,14 @@ find_package(geometry_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Frontier.msg"
   "msg/RobotPose.msg"
+  "msg/RobotRegistry.msg"
+  "msg/RobotState.msg"
   "srv/GetLocalMap.srv"
   "srv/GetLocalMapAndFrontier.srv"
+  "srv/GetPeerRobotPid.srv"
+  "srv/GetPeerRobotPose.srv"
+  "srv/GetPeerRobotState.srv"
+  "srv/SetRobotTargetPose.srv"
   DEPENDENCIES geometry_msgs nav_msgs std_msgs
  )
 

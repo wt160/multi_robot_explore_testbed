@@ -1,0 +1,24 @@
+tb0_peer_interface_node:
+  ros__parameters:
+    robot_name: "tb0" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    tb0_init_offset: []
+    tb1_init_offset: []
+    tb2_init_offset: []
+    simulation_mode: True  
+
+tb1_peer_interface_node:
+  ros__parameters:
+    robot_name: "tb1" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    tb0_init_offset: []
+    tb1_init_offset: []
+    tb2_init_offset: []
+    simulation_mode: True  
+
+tb2_peer_interface_node:
+  ros__parameters:
+    robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    tb0_init_offset: []
+    tb1_init_offset: []
+    tb2_init_offset: []
+    simulation_mode: True  
+
