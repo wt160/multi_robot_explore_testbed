@@ -47,7 +47,7 @@ class MultiExploreNode(Node):
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
         self.global_frontiers_ = []
         self.robot_name_ = robot_name 
-        self.current_state_ = -1
+        self.current_state_ = 0
         self.previous_state_ = -1
         #current robot_peers 
         self.robot_peers_ = []
@@ -97,7 +97,7 @@ class MultiExploreNode(Node):
         self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontier, self.robot_name_ + '/get_local_map_and_frontier', self.getLocalMapAndFrontierCallback)
 
 
-        self.receive_target_cmd_srv = self.create_service(SetRobotTargetPose, self.robot_name_ + '/set_robot_target_pose', self.setTargetRobotPoseCallback) 
+       # self.receive_target_cmd_srv = self.create_service(SetRobotTargetPose, self.robot_name_ + '/set_robot_target_pose', self.setTargetRobotPoseCallback) 
 
         self.local_map_callback_lock_ = False
         map_topic = ''
@@ -177,7 +177,7 @@ class MultiExploreNode(Node):
                 else:
                     self.get_logger().error('failed to get transform')
             else:
-                #self.get_logger().info('working in single_robot mode, failed to find peer robots')
+                self.get_logger().info('working in single_robot mode, failed to find peer robots')
                 init_success = False
 
 
@@ -225,7 +225,7 @@ class MultiExploreNode(Node):
         #         self.robot_peers_.append(name)
         #rclpy.spin_once(self)
         self.persistent_robot_peers_ = self.beacon_peers_
-        print(self.beacon_peers_)
+        #print(self.beacon_peers_)
 
     def getRobotCurrentPos(self):
         #return True, if success,
@@ -807,8 +807,8 @@ class MultiExploreNode(Node):
                 if len(self.window_frontiers) == 0:
                     self.current_state_ = self.FINISH_TARGET_WINDOW_DONE
                 else:
-                    self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
-
+                    #self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
+                    self.current_state_ = self.CHECK_ENVIRONMENT
             
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_DONE:
             self.get_logger().error('Enter FINISH_TARGET_WINDOW_DONE')
@@ -822,6 +822,8 @@ class MultiExploreNode(Node):
             choose_target_map = copy.deepcopy(self.inflated_local_map_) 
             for f_connect in self.window_frontiers: 
                 target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 5)
+                if target_pt == None:
+                    continue
                 target_pose = Pose()  
                 target_pose.position.x = target_pt[0]
                 target_pose.position.y = target_pt[1]
@@ -1009,9 +1011,9 @@ class MultiExploreNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    
-    robot_name = sys.argv[1]
-    peer_robot_name = sys.argv[2]  
+    robot_name = ''
+    #robot_name = sys.argv[1]
+    #peer_robot_name = sys.argv[2]  
     explore_node = MultiExploreNode(robot_name)
     executor = MultiThreadedExecutor(8)
     executor.add_node(explore_node)
@@ -1023,7 +1025,7 @@ def main(args=None):
     spin_thread.start()
     # wfd_thread = Thread(target=explore_node.updateWindowWFD)
     # wfd_thread.start()
-    explore_node.setPeerName(peer_robot_name)
+    #explore_node.setPeerName(peer_robot_name)
     # for time in range(500):
     #     explore_node.name_timer_callback()
 

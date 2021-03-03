@@ -22,7 +22,7 @@ class ExploreUtil:
         self.NAVIGATION_FAILED = 1
         self.NAVIGATION_MOVING = 2
         self.NAVIGATION_NO_GOAL = 3
-
+        self.get_free_neighbor_trial_limit = 200
 
     def euler_from_quaternion(self, quaternion):
         """
@@ -113,6 +113,8 @@ class ExploreUtil:
                 max_cell = pt_cell
         
         observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 1, radius)
+        if observe_pt_cell == None:
+            return None
         observe_pt = (observe_pt_cell[0]*map.info.resolution + map.info.origin.position.x, observe_pt_cell[1]*map.info.resolution + map.info.origin.position.y)
         return observe_pt
             
@@ -156,16 +158,19 @@ class ExploreUtil:
         theta = 0.0
         condition = True
         neigh = (0, 0)
-        while condition:
+        trial_num = 0
+        while condition and trial_num < self.get_free_neighbor_trial_limit:
             r = (max_radius - min_radius) * random.random() + min_radius
             theta = random.random() * 2 * 3.14159
             neigh = (cell[0] + (int)(r * math.cos(theta)) , cell[1] + (int)(r * math.sin(theta)))
             # neigh[0] = cell[0] + (int)(r * math.cos(theta))
             # neigh[1] = cell[1] + (int)(r * math.sin(theta))
             print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
+            trial_num = trial_num + 1
             if self.isCellFree(map, neigh[0], neigh[1], free_thres):
                 condition = False
-        
+        if condition == True:
+            return None
         return neigh
 
     def isFrontier(self, map, curr_cell, free_thres=0):       

@@ -125,5 +125,6 @@ class RobotControlInterface(Node):
     def rotateNCircles(self, n, v_w):
         t_0 = time.time()
         while time.time() - t_0 < n*2*3.14159/v_w:
+            self.get_logger().info('rotateNCircles')
             self.sendCmdVel(0.0, 0.0, v_w)
             

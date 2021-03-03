@@ -78,8 +78,8 @@ class PeerInterfaceNode(Node):
         self.navigate_to_pose_client_ = ActionClient(self, NavigateToPose, robot_name + '/navigate_to_pose')
         self.get_path_result = None
         self.get_path_done_ = False
-        self.navigate_to_pose_state_ = self.e_util.NAVIGATION_NO_GOAL
         self.e_util = ExploreUtil()
+        self.navigate_to_pose_state_ = self.e_util.NAVIGATION_NO_GOAL
 
         self.init_offset_dict_ = dict()
         self.getPeerRobotInitPose()
