@@ -168,7 +168,7 @@ class MultiExploreNode(Node):
         #some init work, discover peer robots, get their relative transforms from the local fixed frame
         init_success = False
         t_0 = time.time()
-        while time.time() < t_0 + 10.0 and init_success == False:
+        while time.time() < t_0 + 3.0 and init_success == False:
             self.discoverRobotPeers()
             if len(self.persistent_robot_peers_) > 0:
                 if self.getPeerRobotFixedFrameTransformToLocalFixed():
@@ -268,7 +268,7 @@ class MultiExploreNode(Node):
 
     def localMapCallback(self, map_msg):
         #do a window_WFD from robot's current position, get a set of new frontiers, and integrate the new found frontiers with existing self.local_frontiers_
-        self.get_logger().warn('{}:localMapCallback'.format(self.tic_))
+        #self.get_logger().warn('{}:localMapCallback'.format(self.tic_))
         mutex = Lock()
         mutex.acquire()
         if self.local_map_callback_lock_ == True:
@@ -276,9 +276,9 @@ class MultiExploreNode(Node):
         self.local_map_callback_lock_ = True
         self.local_map_ = map_msg
 
-        self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
+        #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
         self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 3)
-        self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
+        #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
         self.inflated_map_pub_.publish(self.inflated_local_map_)
         self.local_map_callback_lock_ = False
         self.tic_ = self.tic_ + 1
@@ -788,7 +788,7 @@ class MultiExploreNode(Node):
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
             self.r_interface_.navigateToPose(self.current_target_pos_)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
-                self.get_logger().warn('navigating to target...')
+                #self.get_logger().warn('navigating to target {},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.current_state_ = self.CHECK_ENVIRONMENT
@@ -807,12 +807,12 @@ class MultiExploreNode(Node):
                 if len(self.window_frontiers) == 0:
                     self.current_state_ = self.FINISH_TARGET_WINDOW_DONE
                 else:
-                    #self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
-                    self.current_state_ = self.CHECK_ENVIRONMENT
+                    self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
+                    #self.current_state_ = self.CHECK_ENVIRONMENT
             
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_DONE:
             self.get_logger().error('Enter FINISH_TARGET_WINDOW_DONE')
-
+            
             #request frontiers from other robots, and merge, get new assignment of frontiers
             pass
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_NOT_DONE:            
@@ -821,7 +821,7 @@ class MultiExploreNode(Node):
             min_length = 1000000
             choose_target_map = copy.deepcopy(self.inflated_local_map_) 
             for f_connect in self.window_frontiers: 
-                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 5)
+                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 10)
                 if target_pt == None:
                     continue
                 target_pose = Pose()  
@@ -832,26 +832,34 @@ class MultiExploreNode(Node):
                 curr_pose.position.x = self.current_pos_[0]
                 curr_pose.position.y = self.current_pos_[1]
                 curr_pose.position.z = 0.0
-                target_pose.orientation.x = 0.0
-                target_pose.orientation.y = 0.0
-                target_pose.orientation.z = 0.0
-                target_pose.orientation.w = 1.0
+                #target_pose.orientation.x = 0.0
+                #target_pose.orientation.y = 0.0
+                #target_pose.orientation.z = 0.0
+                #target_pose.orientation.w = 1.0
 
-                # target_pose = self.e_util.getDirectionalPose(curr_pose, target_pose)
-                print('target_pose orientation:{},{},{},{}'.format(target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w))
-                print('before get path length')
+                target_pose = self.e_util.getDirectionalPose(curr_pose, target_pose)
+                #print('target_pose orientation:{},{},{},{}'.format(target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w))
+                #print('before get path length')
                 self.r_interface_.getPathLengthToPose(target_pose)
+                get_path_start_time = time.time()
                 while self.r_interface_.get_path_done_  == False:
+                    if time.time() - get_path_start_time > 5.0:
+                        break
                     pass
+                if self.r_interface_.get_path_done_ == False:
+                    continue
                 length = self.r_interface_.getPathLength()
+                if length < 1:
+                    continue
+                self.get_logger().warn('trial target pos:{},{}'.format(target_pose.position.x, target_pose.position.y))
                 self.get_logger().warn('getPathLength:{}'.format(length))
                 if length < min_length:
                     min_length = length
                     self.current_target_pos_ = target_pose 
             self.get_logger().warn('min PathLength:{}'.format(min_length))
+            self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
 
-
-            
+            input("Press Enter to continue...")
             self.current_state_ = self.GOING_TO_TARGET
         elif self.current_state_ == self.TEST_MERGE_MAP:
             self.updateLocalFrontiersUsingWindowWFD() 

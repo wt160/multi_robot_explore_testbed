@@ -112,7 +112,7 @@ class ExploreUtil:
                 max_dist = dist
                 max_cell = pt_cell
         
-        observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 1, radius)
+        observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 4, radius)
         if observe_pt_cell == None:
             return None
         observe_pt = (observe_pt_cell[0]*map.info.resolution + map.info.origin.position.x, observe_pt_cell[1]*map.info.resolution + map.info.origin.position.y)
