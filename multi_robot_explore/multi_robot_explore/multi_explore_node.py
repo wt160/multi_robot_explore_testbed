@@ -277,7 +277,7 @@ class MultiExploreNode(Node):
         self.local_map_ = map_msg
 
         #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
-        self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 3)
+        self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 4)
         #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
         self.inflated_map_pub_.publish(self.inflated_local_map_)
         self.local_map_callback_lock_ = False
@@ -350,7 +350,7 @@ class MultiExploreNode(Node):
             current_map.header = self.inflated_local_map_.header
             current_map.info = self.inflated_local_map_.info
             current_map.data = list(self.inflated_local_map_.data)
-            window_wfd = WindowWFD(current_map, self.current_pos_, 150)
+            window_wfd = WindowWFD(current_map, self.current_pos_, 250)
             # if self.DEBUG_ == True:
                 # self.inflated_map_pub_.publish(current_map)
             t_0 = time.time()
@@ -363,6 +363,8 @@ class MultiExploreNode(Node):
             for f_connect_cell in window_frontiers_cell:
                 f_connect = []
                 f_msg = Frontier()
+                if len(f_connect_cell)<3:
+                    continue
                 for f_cell in f_connect_cell:
                     f_double = (f_cell[0]*current_map.info.resolution + current_map.info.origin.position.x, f_cell[1]*current_map.info.resolution + current_map.info.origin.position.y)
                     f_connect.append(f_double)
@@ -775,7 +777,7 @@ class MultiExploreNode(Node):
         if self.current_state_ == self.SYSTEM_INIT:
             #robot rotate inplace
             self.get_logger().error('Enter SYSTEM_INIT')
-            self.r_interface_.rotateNCircles(1, 0.1)
+            #self.r_interface_.rotateNCircles(1, 0.1)
             # self.updateWindowWFD()
             self.r_interface_.stopAtPlace()
             #self.current_state_ = self.TEST_MERGE_MAP
@@ -821,7 +823,7 @@ class MultiExploreNode(Node):
             min_length = 1000000
             choose_target_map = copy.deepcopy(self.inflated_local_map_) 
             for f_connect in self.window_frontiers: 
-                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 10)
+                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 14)
                 if target_pt == None:
                     continue
                 target_pose = Pose()  
