@@ -34,7 +34,7 @@ class WindowWFD:
         dw = self.raw_map_.info.width
         dh = self.raw_map_.info.height
         queue = deque() 
-        queue.append((curr_x_cell, curr_y_cell)) 
+        queue.append((curr_x_cell, curr_y_cell, 0)) 
         is_explored_frontier_map = dict() 
         is_visited_map = dict() 
         is_visited_map[curr_x_cell + curr_y_cell*dw] = True
@@ -42,30 +42,32 @@ class WindowWFD:
         while len(queue) > 0:
             curr_cell = queue[0]
             queue.popleft()
-            covered_set.add(curr_cell)
+            covered_set.add(curr_cell[0:2])
             # print('queue size:{}'.format(len(queue)))
-            if self.e_util.isFrontier(self.raw_map_, curr_cell, self.thres_):
+            if self.e_util.isFrontier(self.raw_map_, curr_cell[0:2], self.thres_):
                 if (curr_cell[0] + curr_cell[1]*dw) not in is_explored_frontier_map:
-                    frontier_connects = self.findConnectedFrontiers(curr_cell, self.raw_map_)
+                    frontier_connects = self.findConnectedFrontiers(curr_cell[0:2], self.raw_map_)
+                    frontier_connects_with_rank = []
                     for c in frontier_connects:
                         is_explored_frontier_map[c[0] + c[1]*dw] = True
                         is_visited_map[c[0] + c[1]*dw] = True
-                    
+                        frontier_connects_with_rank.append((c[0], c[1], curr_cell[2]))
                     if len(frontier_connects) > 2:
-                        frontier_list.append(frontier_connects)
+
+                        frontier_list.append(frontier_connects_with_rank)
                 continue
             
             #check whether curr_cell is within the dynamic window around self.curr_pos_
             if abs(curr_cell[0] - curr_x_cell) > self.window_size_ or abs(curr_cell[1] - curr_y_cell) > self.window_size_:
                 continue
 
-            neighbors = self.e_util.get8ConnectNeighbors(curr_cell, dw, dh)
+            neighbors = self.e_util.get8ConnectNeighbors(curr_cell[0:2], dw, dh)
             for n in neighbors:
                 key = n[0] + dw * n[1]
                 if key not in is_visited_map:
                     is_visited_map[key] = True
                     if self.e_util.isCellFree(self.raw_map_, n[0], n[1], self.thres_) or self.e_util.isFrontier(self.raw_map_, n, self.thres_):
-                        queue.append(n)
+                        queue.append((n[0], n[1], curr_cell[2]+1))
         
         print('(WindowWFD)end')
         return frontier_list, covered_set

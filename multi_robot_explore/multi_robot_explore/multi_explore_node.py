@@ -149,7 +149,9 @@ class MultiExploreNode(Node):
 
         #support function update()
         self.window_frontiers = None
-        
+        self.window_frontiers_rank = None
+
+
     def setPeerName(self, peer_name):
         self.beacon_peers_.append(peer_name)
 
@@ -340,9 +342,10 @@ class MultiExploreNode(Node):
         mutex.acquire()
         temp_window_frontiers_ = []
         temp_window_frontiers_msg_ = []
+        temp_window_frontiers_rank_ = []
         if self.inflated_local_map_ == None or self.inflated_local_map_ == OccupancyGrid():
             self.get_logger().error('(updateLocalFrontiersUsingWindowWFD): no inflated_local_map')
-            return -1
+            return -1, -1
         self.get_logger().info('(updateLocalFrontiersUsingWindowWFD): init')
         if self.getRobotCurrentPos():
             # self.get_logger().warn('(updateLocalFrontiersUsingWindowWFD): start window_wfd!!!')
@@ -376,6 +379,7 @@ class MultiExploreNode(Node):
                     f_msg.frontier.append(pt_stamped)
                 temp_window_frontiers_msg_.append(f_msg)
                 temp_window_frontiers_.append(f_connect)
+                temp_window_frontiers_rank_.append(f_connect_cell[0][3])
 
 
             #update self.local_frontiers_msg and self.local_frontiers_ with temp_window_frontiers_ , temp_window_frontiers_msg_
@@ -457,10 +461,10 @@ class MultiExploreNode(Node):
 
         else:
             self.get_logger().error('(updateLocalFrontiersUsingWindowWFD): failed to get robot current pos')
-            return -2
+            return -2, -2
         self.get_logger().info('(updateLocalFrontiersUsingWindowWFD): end')
         mutex.release()
-        return temp_window_frontiers_
+        return temp_window_frontiers_, temp_window_frontiers_rank_
 
     def generateFrontierDebugMap(self, frontier_msg_list, current_map):
         local_map_dw = current_map.info.width
@@ -801,7 +805,7 @@ class MultiExploreNode(Node):
             self.get_logger().error('Enter CHECK_ENVIRONMENT')
             #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
             #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
-            self.window_frontiers = self.updateLocalFrontiersUsingWindowWFD()
+            self.window_frontiers, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
             if self.window_frontiers == -1 or self.window_frontiers == -2:
                 self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers')
                 self.current_state_ = self.CHECK_ENVIRONMENT
@@ -822,9 +826,14 @@ class MultiExploreNode(Node):
             self.get_logger().error('Enter FINISH_TARGET_WINDOW_NOT_DONE')
             min_length = 1000000
             choose_target_map = copy.deepcopy(self.inflated_local_map_) 
-            for f_connect in self.window_frontiers: 
+            find_valid_target = False
+            while find_valid_target == False:
+                closest_rank_index = self.window_frontiers_rank.index(min(self.window_frontiers_rank))
+                f_connect = self.window_frontiers[closest_rank_index]
                 target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 14)
                 if target_pt == None:
+                    del self.window_frontiers_rank[closest_rank_index]
+                    del self.window_frontiers[closest_rank_index]
                     continue
                 target_pose = Pose()  
                 target_pose.position.x = target_pt[0]
@@ -849,20 +858,85 @@ class MultiExploreNode(Node):
                         break
                     pass
                 if self.r_interface_.get_path_done_ == False:
+                    del self.window_frontiers_rank[closest_rank_index]
+                    del self.window_frontiers[closest_rank_index]
                     continue
                 length = self.r_interface_.getPathLength()
                 if length < 1:
+                    del self.window_frontiers_rank[closest_rank_index]
+                    del self.window_frontiers[closest_rank_index]
                     continue
                 self.get_logger().warn('trial target pos:{},{}'.format(target_pose.position.x, target_pose.position.y))
                 self.get_logger().warn('getPathLength:{}'.format(length))
-                if length < min_length:
-                    min_length = length
-                    self.current_target_pos_ = target_pose 
-            self.get_logger().warn('min PathLength:{}'.format(min_length))
-            self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
-
+                
+                self.current_target_pos_ = target_pose 
+                self.get_logger().warn('min PathLength:{}'.format(min_length))
+                self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
+                find_valid_target = True
             input("Press Enter to continue...")
             self.current_state_ = self.GOING_TO_TARGET
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            # for f_connect in self.window_frontiers: 
+            #     target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 14)
+            #     if target_pt == None:
+            #         continue
+            #     target_pose = Pose()  
+            #     target_pose.position.x = target_pt[0]
+            #     target_pose.position.y = target_pt[1]
+            #     target_pose.position.z = 0.0
+            #     curr_pose = Pose() 
+            #     curr_pose.position.x = self.current_pos_[0]
+            #     curr_pose.position.y = self.current_pos_[1]
+            #     curr_pose.position.z = 0.0
+            #     #target_pose.orientation.x = 0.0
+            #     #target_pose.orientation.y = 0.0
+            #     #target_pose.orientation.z = 0.0
+            #     #target_pose.orientation.w = 1.0
+
+            #     target_pose = self.e_util.getDirectionalPose(curr_pose, target_pose)
+            #     #print('target_pose orientation:{},{},{},{}'.format(target_pose.orientation.x, target_pose.orientation.y, target_pose.orientation.z, target_pose.orientation.w))
+            #     #print('before get path length')
+            #     self.r_interface_.getPathLengthToPose(target_pose)
+            #     get_path_start_time = time.time()
+            #     while self.r_interface_.get_path_done_  == False:
+            #         if time.time() - get_path_start_time > 5.0:
+            #             break
+            #         pass
+            #     if self.r_interface_.get_path_done_ == False:
+            #         continue
+            #     length = self.r_interface_.getPathLength()
+            #     if length < 1:
+            #         continue
+            #     self.get_logger().warn('trial target pos:{},{}'.format(target_pose.position.x, target_pose.position.y))
+            #     self.get_logger().warn('getPathLength:{}'.format(length))
+            #     if length < min_length:
+            #         min_length = length
+            #         self.current_target_pos_ = target_pose 
+            # self.get_logger().warn('min PathLength:{}'.format(min_length))
+            # self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
+
+            # input("Press Enter to continue...")
+            # self.current_state_ = self.GOING_TO_TARGET
         elif self.current_state_ == self.TEST_MERGE_MAP:
             self.updateLocalFrontiersUsingWindowWFD() 
             if self.robot_name_ == 'tb0': 
