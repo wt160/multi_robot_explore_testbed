@@ -92,7 +92,7 @@ class MapAndFrontierMerger:
 
         return merged_map
 
-    def mergeMapFromUpdate(self,):
+    def mergeMapFromUpdate(self):
         #update the self.merged_map_, depends on previous merged result----self.merged_map_
         pass
 

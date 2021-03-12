@@ -8,6 +8,8 @@ from rclpy.duration import Duration
 import time
 import yaml
 import threading
+import math
+import copy
 from collections import deque
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import PoseStamped
@@ -25,11 +27,14 @@ from multi_robot_interfaces.srv import GetPeerRobotPose, GetPeerRobotPid, GetPee
 
 class PeerInterfaceNode(Node):
     def __init__(self, robot_name):
-        super().__init__(robot_name + '_peer_interface_node')
+        super().__init__('peer_interface_node_' + robot_name)
+        self.e_util = ExploreUtil()
         self.robot_name_ = robot_name
         self.peer_robot_registry_list_ = dict()      # all the active robots, including current self robot
-        self.current_pose_ = Pose()
-
+        self.current_pose_local_frame_ = Pose()
+        self.current_pose_world_frame_ = Pose()
+        self.current_state_ = self.e_util.SYSTEM_INIT
+        self.current_target_pose_ = Pose()
         #robot_registry subscriber
         self.robot_registry_sub_ = self.create_subscription(
             RobotRegistry,
@@ -45,6 +50,7 @@ class PeerInterfaceNode(Node):
         #service server for distributing current robot pose to peer robots
         self.current_pose_srv = self.create_service(GetPeerRobotPose, self.robot_name_ + '/get_current_robot_pose', self.getCurrentRobotPoseCallback)
 
+        self.robot_state_srv = self.create_service(GetPeerRobotState, self.robot_name_ + '/get_peer_robot_state', self.getPeerRobotStateCallback)
 
         self.declare_parameters(
             namespace='',
@@ -53,12 +59,12 @@ class PeerInterfaceNode(Node):
                 ('simulation_mode', None),
                 ('tb0_init_offset', None),
                 ('tb1_init_offset', None),
-                ('tb2_init_offset', None)
+                ('tb2_init_offset', None),
+                ('pid', None)
             ]
         )
 
-
-
+        self.current_robot_pid_ = self.get_parameter('pid').value
 
         self._lock = threading.Lock()
         self._tf_future = None
@@ -78,11 +84,10 @@ class PeerInterfaceNode(Node):
         self.navigate_to_pose_client_ = ActionClient(self, NavigateToPose, robot_name + '/navigate_to_pose')
         self.get_path_result = None
         self.get_path_done_ = False
-        self.e_util = ExploreUtil()
         self.navigate_to_pose_state_ = self.e_util.NAVIGATION_NO_GOAL
 
         self.init_offset_dict_ = dict()
-        self.getPeerRobotInitPose()
+        # self.getPeerRobotInitPose()
         
         self.cluster_range_limit_ = 3.0
         self.current_cluster_ = []
@@ -97,12 +102,25 @@ class PeerInterfaceNode(Node):
     def getCurrentRobotPoseCallback(self, request, response):
 
         self.get_logger().warn('{} getCurrentRobotPoseCallback'.format(self.robot_name_))
-        response.robot_pose = self.current_pose_       
+        response.robot_pose = self.current_pose_local_frame_       
+        return response
+
+    def getPeerRobotStateCallback(self, request, response):
+        self.get_logger().warn('{} getPeerRobotStateCallback'.format(self.robot_name_))
+        response.robot_state = RobotState()
+        response.robot_state.robot_name.data = self.robot_name_
+        response.robot_state.robot_pose_world_frame = self.current_pose_world_frame_
+        response.robot_state.battery_level = 100.0
+        response.robot_state.current_state = self.current_state_
+        response.robot_state.current_target_pose = self.current_target_pose_
+        response.robot_state.pid = self.current_robot_pid_
         return response
 
     def robotRegistryCallback(self, msg):
-        self.get_logger().info('robot "%s" register' % msg.robot_name.data)
         peer_name = msg.robot_name.data
+        # if peer_name == self.robot_name_:
+        #     return 
+        self.get_logger().info('robot "%s" registered' % msg.robot_name.data)
         seconds = msg.header.stamp.sec 
         nanoseconds = msg.header.stamp.nanosec 
         if peer_name in self.peer_robot_registry_list_:
@@ -124,13 +142,16 @@ class PeerInterfaceNode(Node):
             if future.result():
                 try:
                     transform = self._tf_buffer.lookup_transform(self.local_map_frame_, self.local_robot_frame_, self._when)
-                    self.current_pose_.position.x = transform.transform.translation.x
-                    self.current_pose_.position.y = transform.transform.translation.y
-                    self.current_pose_.position.z = transform.transform.translation.z
-                    self.current_pose_.orientation.x = transform.transform.rotation.x
-                    self.current_pose_.orientation.y = transform.transform.rotation.y
-                    self.current_pose_.orientation.z = transform.transform.rotation.z
-                    self.current_pose_.orientation.w = transform.transform.rotation.w
+                    self.current_pose_local_frame_.position.x = transform.transform.translation.x
+                    self.current_pose_local_frame_.position.y = transform.transform.translation.y
+                    self.current_pose_local_frame_.position.z = transform.transform.translation.z
+                    self.current_pose_local_frame_.orientation.x = transform.transform.rotation.x
+                    self.current_pose_local_frame_.orientation.y = transform.transform.rotation.y
+                    self.current_pose_local_frame_.orientation.z = transform.transform.rotation.z
+                    self.current_pose_local_frame_.orientation.w = transform.transform.rotation.w
+                    self.current_pose_world_frame_.position.x = self.current_pose_local_frame_.position.x + self.init_offset_dict_[self.robot_name_].position.x 
+                    self.current_pose_world_frame_.position.y = self.current_pose_local_frame_.position.y + self.init_offset_dict_[self.robot_name_].position.y 
+                    self.current_pose_world_frame_.position.z = self.current_pose_local_frame_.position.z + self.init_offset_dict_[self.robot_name_].position.z 
                 except LookupException:
                     self.get_logger().info('transform no longer available')
                 else:
@@ -158,15 +179,15 @@ class PeerInterfaceNode(Node):
             t_0 = time.time()
             transform = self._tf_buffer.lookup_transform(self.local_map_frame_, self.local_robot_frame_,when,timeout=Duration(seconds=5.0))
             # self.get_logger().info('Got {}'.format(repr(transform)))
-            self.current_pose_.position.x = transform.transform.translation.x
-            self.current_pose_.position.y = transform.transform.translation.y
-            self.current_pose_.position.z = transform.transform.translation.z
-            self.current_pose_.orientation.x = transform.transform.rotation.x
-            self.current_pose_.orientation.y = transform.transform.rotation.y
-            self.current_pose_.orientation.z = transform.transform.rotation.z
-            self.current_pose_.orientation.w = transform.transform.rotation.w
+            self.current_pose_local_frame_.position.x = transform.transform.translation.x
+            self.current_pose_local_frame_.position.y = transform.transform.translation.y
+            self.current_pose_local_frame_.position.z = transform.transform.translation.z
+            self.current_pose_local_frame_.orientation.x = transform.transform.rotation.x
+            self.current_pose_local_frame_.orientation.y = transform.transform.rotation.y
+            self.current_pose_local_frame_.orientation.z = transform.transform.rotation.z
+            self.current_pose_local_frame_.orientation.w = transform.transform.rotation.w
             t_1 = time.time()
-            self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pose_.position.x, self.current_pose_.position.y, t_1 - t_0))
+            self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pose_local_frame_.position.x, self.current_pose_local_frame_.position.y, t_1 - t_0))
             
             return True
         except LookupException as e:
@@ -174,7 +195,7 @@ class PeerInterfaceNode(Node):
             return False
 
 
-
+    #self.init_offset_dict_ : relative position of peer robot's fixed frame to the 'world' frame, not relative to the current robot frame
     def getPeerRobotInitPose(self):
         for robot in self.peer_robot_registry_list_:
             param_name = robot + '_init_offset'
@@ -185,13 +206,13 @@ class PeerInterfaceNode(Node):
             self.init_offset_dict_[robot].position.x = init_offset[0]
             self.init_offset_dict_[robot].position.y = init_offset[1] 
             self.init_offset_dict_[robot].position.z = init_offset[2]
-            self.init_offset_dict_[robot].orientation.X = init_offset[3] 
-            self.init_offset_dict_[robot].orientation.Y = init_offset[4] 
+            self.init_offset_dict_[robot].orientation.x = init_offset[3] 
+            self.init_offset_dict_[robot].orientation.y = init_offset[4] 
             self.init_offset_dict_[robot].orientation.z = init_offset[5] 
-            self.init_offset_dict_[robot].orientation.W = init_offset[6] 
+            self.init_offset_dict_[robot].orientation.w = init_offset[6] 
     
     #peer_list: if given, the list of robot names to request robot state information from, if None, request from self.peer_robot_registry_list_ (all the active robots)
-    def getPeerRobotState(self, peer_list=None):
+    def getPeerRobotStateFunction(self, peer_list=None):
         service_client_dict = dict()
         service_response_future = dict()
         peer_robot_state_dict = dict()
@@ -208,11 +229,11 @@ class PeerInterfaceNode(Node):
 
         t_0 = time.time()
         peer_robot_state_done = False
-        while not peer_robot_state_done and time.time() - t_0 < 3.0:
+        while not peer_robot_state_done and time.time() - t_0 < 10.0:
             peer_robot_state_done = True
             for robot in peer_list:
-                rclpy.spin_once(self) 
-                self.get_logger().info('check get_peer_robot_state response future')
+                # rclpy.spin_once(self) 
+                # self.get_logger().info('check get_peer_robot_state response future')
                 if service_response_future[robot].done():
                     response = service_response_future[robot].result()
                     peer_robot_state_dict[robot] = response 
@@ -230,8 +251,9 @@ class PeerInterfaceNode(Node):
         peer_robot_pose_dict = dict()
         # always try to request and merge all the peers, no matter whether discovered at current timestep 
         # for robot in self.robot_peers_:
-        self.peer_map_.clear()
-        self.peer_local_frontiers_.clear()
+        #self.peer_map_.clear()
+        #self.peer_local_frontiers_.clear()
+
         for robot in self.peer_robot_registry_list_:
             service_name = robot + '/get_current_robot_pose'
             service_client_dict[robot] = self.create_client(GetPeerRobotPose, service_name)
@@ -252,7 +274,7 @@ class PeerInterfaceNode(Node):
         while not peer_update_done and time.time() - t_0 < 3:
             peer_update_done = True
             for robot in self.peer_robot_registry_list_:
-                rclpy.spin_once(self)
+                #rclpy.spin_once(self)
                 self.get_logger().error('check service response future')
                 if service_response_future[robot].done():
                     response = service_response_future[robot].result()
@@ -268,12 +290,15 @@ class PeerInterfaceNode(Node):
         peer_robot_pose_local_frame_dict = self.getPeerRobotPosesInLocalFrame()
         peer_robot_pose_world_frame_dict = dict()
         for robot in self.peer_robot_registry_list_:
-            init_pose = self.init_offset_dict_[robot]
-            pose_world_frame = peer_robot_pose_local_frame_dict[robot] 
-            pose_world_frame.position.x = pose_world_frame.position.x + init_pose.position.x 
-            pose_world_frame.position.y = pose_world_frame.position.y + init_pose.position.y  
-            pose_world_frame.position.z = pose_world_frame.position.z + init_pose.position.z  
-            peer_robot_pose_world_frame_dict[robot] = pose_world_frame 
+            if robot in self.init_offset_dict_:
+                init_pose = self.init_offset_dict_[robot]
+                pose_world_frame = peer_robot_pose_local_frame_dict[robot] 
+                pose_world_frame.position.x = pose_world_frame.position.x + init_pose.position.x 
+                pose_world_frame.position.y = pose_world_frame.position.y + init_pose.position.y  
+                pose_world_frame.position.z = pose_world_frame.position.z + init_pose.position.z  
+                peer_robot_pose_world_frame_dict[robot] = pose_world_frame 
+            else:
+                self.get_logger().error('(getPeerRobotPosesInWorldFrame) {} not in self.init_offset_dict_'.format(robot))
         return peer_robot_pose_world_frame_dict 
 
 
@@ -322,6 +347,7 @@ class PeerInterfaceNode(Node):
         while len(bfs_queue) > 0:
             curr_robot = bfs_queue[0]
             bfs_queue.popleft()
+            #TODO check whether index curr_robot exists
             curr_pose = peer_robot_pose_world_frame_dict[curr_robot]
             cluster_list.append(curr_robot)
             for neigh in peer_robot_pose_world_frame_dict:

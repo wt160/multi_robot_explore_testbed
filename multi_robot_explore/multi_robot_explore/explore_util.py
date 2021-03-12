@@ -18,10 +18,21 @@ class ExploreUtil:
                 circle.append((x, y))
             self.center_to_circle_map[length] = circle
         
-        self.NAVIGATION_DONE = 0
-        self.NAVIGATION_FAILED = 1
-        self.NAVIGATION_MOVING = 2
-        self.NAVIGATION_NO_GOAL = 3
+        self.NAVIGATION_DONE = 10
+        self.NAVIGATION_FAILED = 11
+        self.NAVIGATION_MOVING = 12
+        self.NAVIGATION_NO_GOAL = 13
+
+        self.SYSTEM_INIT = 0
+        self.CHECK_ENVIRONMENT = 1
+        self.GOING_TO_TARGET = 2
+        self.FINISH_TARGET_WINDOW_DONE = 3
+        self.FINISH_TARGET_WINDOW_NOT_DONE = 4
+        self.TEST_MERGE_MAP = 5
+        self.TEST_MERGE_FRONTIERS = 6
+        self.SYSTEM_SHUTDOWN = 7
+        self.WAIT_FOR_COMMAND = 8
+
         self.get_free_neighbor_trial_limit = 200
 
     def euler_from_quaternion(self, quaternion):
@@ -104,10 +115,11 @@ class ExploreUtil:
     def getObservePtForFrontiers(self, f_connect, map, radius):
         max_dist = -1
         max_cell = None
-        for pt in f_connect:
+        for pt_index in range(0, len(f_connect), 2):
+            pt = f_connect[pt_index]
             pt_cell = ((int)((pt[0] - map.info.origin.position.x) / map.info.resolution) ,  (int)((pt[1] - map.info.origin.position.y) / map.info.resolution))
             dist = self.getShortestDistFromPtToObs(pt_cell, map)
-            print('(getObservePtForFrontiers) {}'.format(dist))
+            # print('(getObservePtForFrontiers) {}'.format(dist))
             if dist > max_dist:
                 max_dist = dist
                 max_cell = pt_cell
