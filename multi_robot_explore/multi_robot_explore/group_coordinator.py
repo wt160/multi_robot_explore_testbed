@@ -173,33 +173,49 @@ class GroupCoordinator(Node):
             #for each direct line distance calculation, check whether cross obstacles 
             peer_to_dist_list_dict = dict()
             peer_to_closest_f_dict = dict()
+            peer_to_target_dict = dict()
             #ready_peer_list also include self.robot_name_
             for peer in ready_peer_list:
-                peer_f_dict = dict()
+                peer_f_dist_dict = dict()
                 min_dist = 1000000
                 closest_f = None
                 for f in available_frontiers:
                     #here f are in self.robot_name_'s local frame,
                     
                     peer_f_dist = self.distBetweenPoseAndFrontiers(peer_pose_in_current_robot_frame_dict[peer], f)
-                    peer_f_dict[f] = peer_f_dist
+                    peer_f_dist_dict[f] = peer_f_dist
                     if peer_f_dist < min_dist:
                         min_dist = peer_f_dist
                         closest_f = f
                 peer_to_closest_f_dict[peer] = closest_f
-                peer_to_dist_list_dict[peer] = peer_f_dict
+                peer_to_dist_list_dict[peer] = peer_f_dist_dict
 
+            #this step finds the fake closest dist between peer and frontier(direct line cross obs), and correct them, but doesn't make sure no conflict between peers(peers targeting same frontier) 
+            
             for peer in ready_peer_list:
-                closest_f = peer_to_closest_f_dict[peer]
-                f_pt = self.extractTargetFromFrontier(closest_f) 
-                start_pt = (peer_pose_in_current_robot_frame_dict[peer].position.x, peer_pose_in_current_robot_frame_dict[peer].position.y)
-                is_line_cross_obs = self.checkDirectLineCrossObs(start_pt, f_pt, merged_map)
-                if is_line_cross_obs == True:
-                    #the direct line connecting closest pair(peer, frontier) cross obstacle, 
-                    pass
-                else:
-                    #the direct line connecting closest pair(peer, frontier) is in free space, can continue
-                    
+                peer_f_dist_dict = peer_to_dist_list_dict[peer]
+                sorted_f_list = sorted(peer_f_dist_dict, key=peer_f_dist_dict.__getitem__)
+                peer_pt = (peer_pose_in_current_robot_frame_dict[peer].position.x, peer_pose_in_current_robot_frame_dict[peer].position.y)
+                is_peer_settled = False
+                while is_peer_settled == False
+                    curr_f = sorted_f_list[0]
+                    f_pt = self.extractTargetFromFrontier(curr_f) 
+                    is_line_cross_obs = self.checkDirectLineCrossObs(peer_pt, f_pt, merged_map)
+                    if is_line_cross_obs == True:
+                        #call astar pathplanner to calculate true path length from peer to sorted_f, 
+                        astar_length = self.e_util.getAstarPath(peer_pt, f_pt, merged_map) 
+                        peer_f_dist_dict[curr_f] = astar_length 
+                        sorted_f_list = sorted(peer_f_dist_dict, key=peer_f_dist_dict.__getitem__)
+                        if sorted_f_list[0] == curr_f:
+                            is_peer_settled = True
+                            peer_to_closest_f_dict[peer] = curr_f
+                    else:
+                        peer_to_closest_f_dict[peer] = curr_f
+                        is_peer_settled = True
+
+
+            #this step resolves the conflicts between peers that target same frontier
+
 
 
         else:
