@@ -30,12 +30,15 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotPose.msg"
   "msg/RobotRegistry.msg"
   "msg/RobotState.msg"
+  "msg/RobotStatePid.msg"
   "srv/GetLocalMap.srv"
   "srv/GetLocalMapAndFrontier.srv"
+  "srv/GetLocalMapAndFrontierCompress.srv"
   "srv/GetPeerRobotPid.srv"
   "srv/GetPeerRobotPose.srv"
   "srv/GetPeerRobotState.srv"
   "srv/SetRobotTargetPose.srv"
+  "srv/GetPeerRobotStatePid.srv" 
   DEPENDENCIES geometry_msgs nav_msgs std_msgs
  )
 

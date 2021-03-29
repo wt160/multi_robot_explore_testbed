@@ -6,6 +6,9 @@ import time
 import sys
 import numpy as np
 import copy
+import pickle
+import gzip
+import lzma
 from std_msgs.msg import String
 from nav_msgs.msg import OccupancyGrid
 from multi_robot_explore.window_WFD import WindowWFD
@@ -28,13 +31,13 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 
 
 
-
 from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import Pose
 from multi_robot_interfaces.msg import Frontier
-from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier
+from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress
 from robot_control_interface.robot_control_node import RobotControlInterface
 from multi_robot_explore.peer_interface_node import PeerInterfaceNode
+from multi_robot_explore.group_coordinator import GroupCoordinator
 # import explore_util.ExploreUtil as explore_util
 # self.get_logger().info()
 class MultiExploreNode(Node):
@@ -89,8 +92,9 @@ class MultiExploreNode(Node):
         # self.local_map_srv = self.create_service(GetLocalMap, self.robot_name_ + '/get_local_map', self.getLocalMapCallback)
         self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontier, self.robot_name_ + '/get_local_map_and_frontier', self.getLocalMapAndFrontierCallback)
 
+        self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontierCompress, self.robot_name_ + '/get_local_map_and_frontier_compress', self.getLocalMapAndFrontierCompressCallback)
 
-       # self.receive_target_cmd_srv = self.create_service(SetRobotTargetPose, self.robot_name_ + '/set_robot_target_pose', self.setTargetRobotPoseCallback) 
+        self.receive_target_cmd_srv = self.create_service(SetRobotTargetPose, self.robot_name_ + '/set_robot_target_pose', self.setTargetRobotPoseCallback) 
 
         self.local_map_callback_lock_ = False
         map_topic = ''
@@ -140,10 +144,20 @@ class MultiExploreNode(Node):
         self.peer_interface_ = PeerInterfaceNode(self.robot_name_)
         self.tic_ = 0
 
+        self.group_coordinator_ = GroupCoordinator(self.robot_name_)
+
         #support function update()
         self.window_frontiers = None
         self.window_frontiers_rank = None
 
+        self.peer_state_pid_list_ = None
+
+        self.going_to_target_failed_times_ = 0
+        self.is_leader_in_current_cluster = False
+
+    def setRobotState(self, state):
+        self.current_state_ = state
+        self.peer_interface_.current_state_ = state
 
     def setPeerName(self, peer_name):
         self.beacon_peers_.append(peer_name)
@@ -182,6 +196,27 @@ class MultiExploreNode(Node):
         response.map = self.inflated_local_map_
         return response
     
+
+
+    def getLocalMapAndFrontierCompressCallback(self, request, response):
+        self.get_logger().warn('{} getLocalMapAndFrontierCompressRequest'.format(self.robot_name_))
+        if self.inflated_local_map_ == None:
+            self.inflated_local_map_ = OccupancyGrid()
+        local_map_bytes = pickle.dumps(self.inflated_local_map_)
+        self.get_logger().warn('before compressed map size:{}'.format(len(local_map_bytes)))
+        compressed_local_map_bytes = lzma.compress(local_map_bytes)
+        self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
+        # print(compressed_local_map_bytes)
+        
+        # response.map_compress = []
+        # for i in range(len(compressed_local_map_bytes)):
+        #     response.map_compress.append(compressed_local_map_bytes[i])
+        response.map_compress = list(compressed_local_map_bytes)
+        # response.map_compress = [b'a',b'c',b'r',b'w']
+        response.local_frontier = self.local_frontiers_msg_
+        self.get_logger().warn('send map time: {}'.format(time.time()))
+        return response
+
     def getLocalMapAndFrontierCallback(self, request, response):
 
         self.get_logger().warn('{} getLocalMapAndFrontierRequest'.format(self.robot_name_))
@@ -189,16 +224,24 @@ class MultiExploreNode(Node):
             self.inflated_local_map_ = OccupancyGrid()
         response.map = self.inflated_local_map_            
         response.local_frontier = self.local_frontiers_msg_
+        self.get_logger().warn('send map time: {}'.format(time.time()))
+
         return response
         
     def setTargetRobotPoseCallback(self, request, response):
-        self.current_state_ = self.e_util.GOING_TO_TARGET
-        requested_target_world_frame = request.target_pose_world_frame
-        current_offset_pose = self.peer_interface_.init_offset_dict_[self.robot_name_]
-        self.current_target_pos_.position.x = requested_target_world_frame.position.x - current_offset_pose.position.x 
-        self.current_target_pos_.position.y = requested_target_world_frame.position.y - current_offset_pose.position.y 
-        self.current_target_pos_.position.z = requested_target_world_frame.position.z - current_offset_pose.position.z 
-        self.current_target_pos_.orientation = requested_target_world_frame.orientation
+        requested_target_pose = request.target_pose
+        for i in range(10):
+            self.get_logger().warn('!!!!!!!!!!!!!')
+        self.get_logger().error('got command to target {},{}'.format(requested_target_pose.position.x, requested_target_pose.position.y))
+        for i in range(10):
+            self.get_logger().warn('??????????????')
+
+        self.peer_interface_.current_target_pose_ = requested_target_pose
+        self.current_target_pos_.position.x = requested_target_pose.position.x 
+        self.current_target_pos_.position.y = requested_target_pose.position.y 
+        self.current_target_pos_.position.z = requested_target_pose.position.z 
+        self.current_target_pos_.orientation = requested_target_pose.orientation
+        self.setRobotState(self.e_util.GOING_TO_TARGET)
         return response
 
 
@@ -244,6 +287,8 @@ class MultiExploreNode(Node):
             self.get_logger().error('failed to get transform {}'.format(repr(e)))
             return False
 
+    
+
     def getPeerRobotRelativePoseToWorld(self):
         pass
 
@@ -278,7 +323,7 @@ class MultiExploreNode(Node):
         #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
         self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 4)
         #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
-        self.inflated_map_pub_.publish(self.inflated_local_map_)
+        self.inflated_map_pub_.publish(self.local_map_)
         self.local_map_callback_lock_ = False
         self.tic_ = self.tic_ + 1
         mutex.release()
@@ -387,7 +432,7 @@ class MultiExploreNode(Node):
 
             #DEBUG
             if self.DEBUG_:
-                # self.get_logger().warn('debug local_frontiers')
+                self.get_logger().warn('debug local_frontiers')
                 local_map_dw = current_map.info.width
                 local_map_dh = current_map.info.height
                 frontiers_index_list = []
@@ -456,6 +501,7 @@ class MultiExploreNode(Node):
 
 
                 self.debug_frontier_pub_.publish(frontier_debug_map)
+                pass
                 # self.get_logger().warn('end debug local_frontiers')
                 #DEBUG
 
@@ -648,11 +694,12 @@ class MultiExploreNode(Node):
         self.peer_map_.clear()
         self.peer_local_frontiers_.clear()
         for robot in self.persistent_robot_peers_:
-            service_name = robot + '/get_local_map_and_frontier'
-            service_client_dict[robot] = self.create_client(GetLocalMapAndFrontier, service_name)
+            service_name = robot + '/get_local_map_and_frontier_compress'
+            service_client_dict[robot] = self.create_client(GetLocalMapAndFrontierCompress, service_name)
             while not service_client_dict[robot].wait_for_service(timeout_sec=5.0):
                 self.get_logger().info('/get_local_map_and_frontier service not available, waiting again...')
-            req = GetLocalMapAndFrontier.Request()
+            req = GetLocalMapAndFrontierCompress.Request()
+
             # req.request_robot_name.data = self.robot_name_
             service_response_future[robot] = service_client_dict[robot].call_async(req)
             # rclpy.spin_once(self)
@@ -664,14 +711,26 @@ class MultiExploreNode(Node):
         # response = service_response_future[robot].result()
         t_0 = time.time()
         peer_update_done = False
-        while not peer_update_done and time.time() - t_0 < 3:
+        while not peer_update_done and time.time() - t_0 < 10:
             peer_update_done = True
             for robot in self.persistent_robot_peers_:
                 rclpy.spin_once(self)
                 self.get_logger().error('check service response future')
                 if service_response_future[robot].done():
+                    self.get_logger().warn('got service response from {},time:{}'.format(robot, time.time()))
                     response = service_response_future[robot].result()
-                    self.peer_map_[robot] = response.map
+                    compressed_bytes_list = response.map_compress
+                    # print(type(compressed_bytes_list))
+                    # self.get_logger().error('(GroupCoordinator)got service response {}'.format(compressed_bytes_list))
+                    
+                    compressed_bytes = bytes(compressed_bytes_list)
+                    decompress_bytes = lzma.decompress(compressed_bytes)
+
+                    self.peer_map_[robot] = pickle.loads(decompress_bytes) 
+
+
+                    # response = service_response_future[robot].result()
+                    # self.peer_map_[robot] = response.map
                     # print(self.peer_map_)
                     self.peer_local_frontiers_[robot] = response.local_frontier
                     self.peer_data_updated_[robot] = True
@@ -767,7 +826,7 @@ class MultiExploreNode(Node):
         map_frontier_merger = MapAndFrontierMerger(self.robot_name_)
         map_frontier_merger.setLocalMapFromFresh(self.inflated_local_map_)
         map_frontier_merger.setLocalFrontiers(self.local_frontiers_msg_)
-        map_frontier_merger.setPeerInformation(self.persistent_robot_peers_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.persistent_offset_from_peer_to_local_)
+        map_frontier_merger.setPeerInformation(self.persistent_robot_peers_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.peer_interface_. init_offset_to_current_robot_dict_)
        
         merge_t0 = time.time()
         merged_map, merged_frontiers = map_frontier_merger.mergeMapAndFrontiers()
@@ -785,7 +844,8 @@ class MultiExploreNode(Node):
             # self.updateWindowWFD()
             self.r_interface_.stopAtPlace()
             #self.current_state_ = self.TEST_MERGE_MAP
-            self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            # self.current_state_ = self.e_util.CHECK_ENVIRONMENT
         elif self.current_state_ == self.e_util.GOING_TO_TARGET:
             #call navigation stack to move the robot       
             #block during movement
@@ -797,9 +857,11 @@ class MultiExploreNode(Node):
                 #self.get_logger().warn('navigating to target {},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
-                self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                # self.current_state_ = self.e_util.CHECK_ENVIRONMENT
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
-                self.current_state_ = self.e_util.GOING_TO_TARGET
+                self.setRobotState(self.e_util.GOING_TO_TARGET)
+                # self.current_state_ = self.e_util.GOING_TO_TARGET
             pass
         elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
             self.get_logger().error('Enter CHECK_ENVIRONMENT')
@@ -808,12 +870,15 @@ class MultiExploreNode(Node):
             self.window_frontiers, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
             if self.window_frontiers == -1 or self.window_frontiers == -2:
                 self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers')
-                self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                # self.current_state_ = self.e_util.CHECK_ENVIRONMENT
             else:
                 if len(self.window_frontiers) == 0:
-                    self.current_state_ = self.e_util.FINISH_TARGET_WINDOW_DONE
+                    self.setRobotState(self.e_util.FINISH_TARGET_WINDOW_DONE)
+                    # self.current_state_ = self.e_util.FINISH_TARGET_WINDOW_DONE
                 else:
-                    self.current_state_ = self.e_util.FINISH_TARGET_WINDOW_NOT_DONE
+                    self.setRobotState(self.e_util.FINISH_TARGET_WINDOW_NOT_DONE)
+                    # self.current_state_ = self.e_util.FINISH_TARGET_WINDOW_NOT_DONE
                     #self.current_state_ = self.CHECK_ENVIRONMENT
             
         elif self.current_state_ == self.e_util.FINISH_TARGET_WINDOW_DONE:
@@ -830,7 +895,7 @@ class MultiExploreNode(Node):
             while find_valid_target == False:
                 closest_rank_index = self.window_frontiers_rank.index(min(self.window_frontiers_rank))
                 f_connect = self.window_frontiers[closest_rank_index]
-                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 14)
+                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 7, 14)
                 if target_pt == None:
                     del self.window_frontiers_rank[closest_rank_index]
                     del self.window_frontiers[closest_rank_index]
@@ -874,7 +939,9 @@ class MultiExploreNode(Node):
                 self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
                 find_valid_target = True
             input("Press Enter to continue...")
-            self.current_state_ = self.e_util.GOING_TO_TARGET
+            # self.current_state_ = self.e_util.GOING_TO_TARGET
+            self.setRobotState(self.e_util.GOING_TO_TARGET)
+
 
 
 
@@ -974,7 +1041,7 @@ class MultiExploreNode(Node):
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
             self.r_interface_.navigateToPose(self.current_target_pos_)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
-                self.get_logger().warn('navigating to target...')
+                # self.get_logger().warn('navigating to target...')
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.current_state_ = self.e_util.CHECK_ENVIRONMENT
@@ -1060,7 +1127,7 @@ class MultiExploreNode(Node):
                         ready_cluster_list.append(peer)
                 
                 #self-decide whether current robot is leader
-                is_leader_in_current_cluster = True
+                self.is_leader_in_current_cluster = True
                 self.get_logger().error('ready_cluster_list:')
                 for peer in ready_cluster_list:
                     if peer == self.robot_name_:
@@ -1069,11 +1136,11 @@ class MultiExploreNode(Node):
                     pid = cluster_peer_state_dict[peer].robot_state.pid 
                     self.get_logger().error('include {}, pid = {}'.format(peer, pid))
                     if pid > self.peer_interface_.current_robot_pid_:
-                        is_leader_in_current_cluster = False
+                        self.is_leader_in_current_cluster = False
                         break 
-                    
 
-                if is_leader_in_current_cluster == True:
+
+                if self.is_leader_in_current_cluster == True:
                     #wait until all the other robots in the current cluster are in self.WAIT_FOR_COMMAND state
                     self.get_logger().error('current robot is LEADER in current cluster')
                     is_cluster_ready = True
@@ -1116,8 +1183,289 @@ class MultiExploreNode(Node):
         elif self.current_state_ == self.e_util.SYSTEM_SHUTDOWN:  
             return self.e_util.SYSTEM_SHUTDOWN  
 
-    
 
+    def assignTargetForPeer(self, peer_to_target_dict, cluster_state_dict):
+        for peer in peer_to_target_dict:
+            if peer == self.robot_name_:
+                #current_robot will be handled in the state machine, skip here
+                continue 
+            else:
+                peer_to_current_robot_offset = self.group_coordinator_.init_offset_to_current_robot_dict_[peer]
+
+                target_pose_in_peer_frame = Pose()
+                target_pose_in_peer_frame.position.x =  peer_to_target_dict[peer][0] + peer_to_current_robot_offset.position.x 
+                target_pose_in_peer_frame.position.y =  peer_to_target_dict[peer][1] + peer_to_current_robot_offset.position.y 
+                target_pose_in_peer_frame.position.z = 0.0
+
+                peer_pose_world_frame = Pose()
+                if peer in cluster_state_dict:
+                    peer_pose_world_frame = cluster_state_dict[peer].robot_state.robot_pose_world_frame                
+                else:
+                    continue
+                peer_pose_local_frame = Pose()
+                peer_pose_local_frame.position.x = peer_pose_world_frame.position.x + self.group_coordinator_.init_offset_to_world_dict_[peer].position.x
+                peer_pose_local_frame.position.y = peer_pose_world_frame.position.y + self.group_coordinator_.init_offset_to_world_dict_[peer].position.y 
+                peer_pose_local_frame.position.z = 0.0
+
+                target_pose_in_peer_frame = self.e_util.getDirectionalPose(peer_pose_local_frame, target_pose_in_peer_frame)
+                self.get_logger().warn('assignTargetFor {}, target:{},{}'.format(peer, target_pose_in_peer_frame.position.x, target_pose_in_peer_frame.position.y))
+                # input("send target to peer")
+                self.peer_interface_.sendTargetForPeer(peer, target_pose_in_peer_frame)
+                self.get_logger().warn('assignTargetDone!!!!!')
+
+
+
+    
+    def updateMultiCoordinatedGreedy(self):
+        #state of current robot: GOING_TO_TARGET, WAITING_NEW_TARGET, REACH_TARGET, FINISH_TARGET_WINDOW_NOT_DONE, 
+        if self.current_state_ == self.e_util.SYSTEM_INIT:
+            #robot rotate inplace
+            self.r_interface_.rotateNCircles(1, 0.4)
+            # self.updateWindowWFD()
+            self.r_interface_.stopAtPlace()
+            #self.current_state_ = self.TEST_MERGE_MAP
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+        elif self.current_state_ == self.e_util.GOING_TO_TARGET:
+            self.get_logger().error('updateMulti: enter GOING_TO_TARGET')
+            # if self.is_leader_in_current_cluster == False:
+            #     merged_map_, merged_frontiers_ = self.mergePeerFrontiers()
+            #     self.getRobotCurrentPos()
+            #     self.e_util.removeCurrentRobotFootprint(merged_map_, self.current_pos_)
+            #     self.debug_merge_map_pub_.publish(merged_map_)
+
+            #call navigation stack to move the robot       
+            #block during movement
+            #after reach the target, find new target
+            #call navigation stack to move the robot       
+            #block during movement
+            #after reach the target, find new target        
+            self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
+            self.r_interface_.navigateToPose(self.current_target_pos_)
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
+            # while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+            #     # self.get_logger().warn('navigating to target...')
+            #     pass
+            # if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
+            #     self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            # elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
+            #     if self.previous_state_ != self.e_util.GOING_TO_TARGET:
+            #         self.going_to_target_failed_times_ = 0
+            #     else:
+            #         self.going_to_target_failed_times_ += 1
+            #     self.previous_state_ = self.current_state_ 
+            #     if self.going_to_target_failed_times_ > 5:
+            #         self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
+            #     else:
+            #         self.setRobotState(self.e_util.GOING_TO_TARGET) 
+
+
+
+            # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+        elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
+            self.get_logger().error('Enter CHECK_ENVIRONMENT')
+            
+            #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
+            #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
+            self.window_frontiers = self.updateLocalFrontiersUsingWindowWFD()
+            if self.window_frontiers == -1 or self.window_frontiers == -2:
+                self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
+                self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+            else:
+                self.peer_state_pid_list_ = self.peer_interface_.getPeerStatePid()
+                #peer_state_pid_list includes self.robot_name_
+                if len(self.peer_state_pid_list_) == 0:
+                    self.setRobotState(self.e_util.NO_PEER_STATE)
+
+                else:
+                    self.setRobotState(self.e_util.HAVE_PEER_STATE)        
+        elif self.current_state_ == self.e_util.NO_PEER_STATE:
+            #find closest frontier and go
+            self.get_logger().error('NO_PEER_STATE')
+            pass
+        elif self.current_state_ == self.e_util.HAVE_PEER_STATE:
+            ready_cluster_list = []
+            self.get_logger().error('HAVE_PEER_STATE')
+            for peer in self.peer_state_pid_list_:
+                peer_state_response = self.peer_state_pid_list_[peer]
+                if peer_state_response.robot_state_and_pid.current_state != self.e_util.GOING_TO_TARGET:
+                    ready_cluster_list.append(peer)
+
+            self.is_leader_in_current_cluster = True
+            for peer in ready_cluster_list:
+                if peer == self.robot_name_:
+                    #self.robot_name_ not compare with itself
+                    continue
+                pid = self.peer_state_pid_list_[peer].robot_state_and_pid.pid 
+                # self.get_logger().error('ready_cluster_list include {}, pid = {}'.format(peer, pid))
+                if pid > self.peer_interface_.current_robot_pid_:
+                    self.is_leader_in_current_cluster = False
+                    break 
+
+
+            if self.is_leader_in_current_cluster == True:
+                #wait until all the other robots in the current cluster are in self.WAIT_FOR_COMMAND state
+                self.get_logger().error('current robot is LEADER in current cluster')
+                is_cluster_ready = True
+                while not is_cluster_ready:
+                    ready_peer_state_pid_list_ = self.peer_interface_.getPeerStatePid(ready_cluster_list)
+                    for ready_peer in ready_cluster_list:
+                        if ready_peer == self.robot_name_:
+                            continue
+                        if ready_peer_state_pid_list_[ready_peer].robot_state_and_pid.current_state != self.e_util.WAIT_FOR_COMMAND:
+                            is_cluster_ready = False
+                            break
+                    # self.get_logger().warn('Current Leader waiting for other peer robots to be ready for command')
+                self.get_logger().error('cluster is ready')
+                #input("Press Enter to continue to assign targets for cluster robots")
+                
+                cluster_state_dict = self.peer_interface_.getPeerRobotStateFunction(self.persistent_robot_peers_)
+
+                self.group_coordinator_.setGroupInfo(self.persistent_robot_peers_, self.inflated_local_map_, self.local_frontiers_msg_, cluster_state_dict, self.peer_interface_.init_offset_dict_) 
+                peer_to_target_dict = self.group_coordinator_.coordinatedGreedyAssignment()
+                self.assignTargetForPeer(peer_to_target_dict, cluster_state_dict)
+                current_robot_target_pt_2d = peer_to_target_dict[self.robot_name_]
+                target_pose = Pose()
+                target_pose.position.x = current_robot_target_pt_2d[0] 
+                target_pose.position.y = current_robot_target_pt_2d[1] 
+                target_pose.position.z = 0.0
+                curr_pose = Pose() 
+                curr_pose.position.x = self.current_pos_[0]
+                curr_pose.position.y = self.current_pos_[1]
+                curr_pose.position.z = 0.0 
+                target_pose = self.e_util.getDirectionalPose(curr_pose, target_pose)
+                self.current_target_pos_ = target_pose
+                self.peer_interface_.setCurrentTargetPose(target_pose)
+                self.setRobotState(self.e_util.GOING_TO_TARGET)
+                #assignTaskForCluster()
+
+            else:
+                self.get_logger().error('current robot not leader in current cluster, wait for command')
+                
+                
+                self.setRobotState(self.e_util.WAIT_FOR_COMMAND)
+            
+
+
+        elif self.current_state_ == self.e_util.FINISH_TARGET_WINDOW_DONE:
+            #request frontiers from other robots, and merge, self-decide next target 
+            
+            #if has cluster, then decide leader, 
+            #       if current robot is leader, assign tasks
+            #       if not leader, enter WAIT_FOR_COMMAND state
+            #elseif no cluster neighbor, 
+            #   request global possible robots' information(map and frontiers), and self-decide next target, enter GO_TO_TARGET
+
+            self.get_logger().error('updateMulti: enter FINISH_TARGET_WINDOW_DONE')
+            pass
+        elif self.current_state_ == self.e_util.FINISH_TARGET_WINDOW_NOT_DONE:            
+            #request cluster, decide leader based on other robots' states in the same cluster
+            #if current robot is leader, assignTargets for other robots in the cluster (those robots that are in the CHECK_ENVIRONMENT state)
+            #if current robot is not leader, enter the WAIT_FOR_COMMAND state, and wait for leader's command
+
+            # self.SYSTEM_INIT = 0
+            # self.CHECK_ENVIRONMENT = 1
+            # self.GOING_TO_TARGET = 2
+            # self.FINISH_TARGET_WINDOW_DONE = 3
+            # self.FINISH_TARGET_WINDOW_NOT_DONE = 4
+            # self.TEST_MERGE_MAP = 5
+            # self.TEST_MERGE_FRONTIERS = 6
+            # self.SYSTEM_SHUTDOWN = 7
+            # self.WAIT_FOR_COMMAND = 8
+
+            # std_msgs/String robot_name
+            # geometry_msgs/Pose robot_pose_world_frame
+            # float32 battery_level
+            # uint32 current_state
+            # geometry_msgs/Pose current_target_pose
+            # uint32 pid
+            cluster_list = self.peer_interface_.getCluster()
+            self.get_logger().warn('getCluster() result:')
+            for cluster in cluster_list:
+                self.get_logger().warn('cluster has {}'.format(cluster))
+            
+            #there doesn't seems a proper reason to remove self.robot_name_ from cluster_list   
+            #cluster_list.remove(self.robot_name_)
+
+
+            if len(cluster_list) == 1 and cluster_list[0] == self.robot_name_:
+                #current robot has no cluster (neighbors), can act on its own
+                self.get_logger().error('current robot has no cluster, can act on its own')
+                pass
+                #TODO needs to implement single robot strategy which is similar to updateSingle()
+
+            else:
+                #current robot currently in a cluster, see whether current robot is leader among the cluster
+                get_state_before = time.time()
+                cluster_peer_state_dict = self.peer_interface_.getPeerRobotStateFunction(cluster_list)
+                get_state_after = time.time()
+                self.get_logger().error('(updateMulti) get cluster peer state result, size: {}, used time:{}'.format(len(cluster_peer_state_dict), get_state_after - get_state_before))
+
+
+                #ready_cluster_list includes self.robot_name_
+                ready_cluster_list = []
+                for peer in cluster_peer_state_dict:
+                    peer_state_response = cluster_peer_state_dict[peer]
+                    if peer_state_response.robot_state.current_state != self.e_util.GOING_TO_TARGET:
+                        ready_cluster_list.append(peer)
+                
+                #self-decide whether current robot is leader
+                is_leader_in_current_cluster = True
+                self.get_logger().error('ready_cluster_list:')
+                for peer in ready_cluster_list:
+                    if peer == self.robot_name_:
+                        #self.robot_name_ not compare with itself
+                        continue
+                    pid = cluster_peer_state_dict[peer].robot_state.pid 
+                    self.get_logger().error('include {}, pid = {}'.format(peer, pid))
+                    if pid > self.peer_interface_.current_robot_pid_:
+                        is_leader_in_current_cluster = False
+                        break 
+
+
+                if is_leader_in_current_cluster == True:
+                    #wait until all the other robots in the current cluster are in self.WAIT_FOR_COMMAND state
+                    self.get_logger().error('current robot is LEADER in current cluster')
+                    is_cluster_ready = True
+                    while not is_cluster_ready:
+                        cluster_state_dict = self.peer_interface_.getPeerRobotStateFunction(ready_cluster_list)
+                        for ready_peer in cluster_state_dict:
+                            if cluster_state_dict[ready_peer].robot_state.current_state != self.e_util.WAIT_FOR_COMMAND:
+                                is_cluster_ready = False
+                                break
+                        self.get_logger().warn('Current Leader waiting for other peer robots to be ready for command')
+                    self.get_logger().error('cluster is ready')
+                    input("Press Enter to continue to assign targets for cluster robots")
+                    
+                    self.peer_interface_.assignTaskForCluster()
+                    
+                    #assignTaskForCluster()
+                else:
+                    self.get_logger().error('current robot not leader in current cluster, wait for command')
+
+                    self.current_state_ = self.e_util.WAIT_FOR_COMMAND
+            
+                    
+            
+        elif self.current_state_ == self.e_util.TEST_MERGE_MAP:
+            self.updateLocalFrontiersUsingWindowWFD() 
+            if self.robot_name_ == 'tb0': 
+                if self.tic_ % 10 == 0:
+                    self.testMergeFrontier() 
+            if self.robot_name_ == 'tb1':
+                if self.tic_ % 15 == 0:
+                    self.testMergeFrontier()               
+            # self.name_timer_callback()           
+            print('tic:{}'.format(self.tic_))   
+            # self.get_logger().info('self.TEST_MERGE_MAP')
+            self.tic_ = self.tic_ + 1
+            self.current_state_ = self.e_util.TEST_MERGE_MAP
+        
+        elif self.current_state_ == self.e_util.WAIT_FOR_COMMAND:
+            # self.get_logger().error('WAIT_FOR_COMMAND')
+            self.setRobotState(self.e_util.WAIT_FOR_COMMAND)
+            pass
+        elif self.current_state_ == self.e_util.SYSTEM_SHUTDOWN:  
+            return self.e_util.SYSTEM_SHUTDOWN  
         
          
         
@@ -1130,11 +1478,11 @@ def main(args=None):
     total_robot_num = sys.argv[2]
     #peer_robot_name = sys.argv[2]  
     explore_node = MultiExploreNode(robot_name, total_robot_num)
-    executor = MultiThreadedExecutor(8)
+    executor = MultiThreadedExecutor(16)
     executor.add_node(explore_node)
     executor.add_node(explore_node.r_interface_)
     executor.add_node(explore_node.peer_interface_)
-  
+    executor.add_node(explore_node.group_coordinator_)
     spin_thread = Thread(target=executor.spin)
     # spin_thread = Thread(target=rclpy.spin, args=(explore_node,))
     spin_thread.start()
@@ -1147,7 +1495,7 @@ def main(args=None):
     explore_node.initRobotUtil()
     # input('({})press to continue'.format(robot_name))
     while rclpy.ok():
-        state = explore_node.updateMulti()
+        state = explore_node.updateMultiCoordinatedGreedy()
 
         if state == explore_node.e_util.SYSTEM_SHUTDOWN:
             break

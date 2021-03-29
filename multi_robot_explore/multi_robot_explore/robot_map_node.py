@@ -12,28 +12,60 @@ from std_msgs.msg import String, Header
 from nav_msgs.msg import OccupancyGrid
 from ament_index_python.packages import get_package_share_directory
 from multi_robot_interfaces.msg import RobotRegistry
-class RobotRegistryNode(Node):
+
+
+
+#this node receives the mergedMap and republish it , use the newest single map to decorate the mergedMap 
+
+class RobotMapNode(Node):
 
     def __init__(self, robot_name):
-        super().__init__(robot_name + '_robot_registry_node')
-        self.publisher_ = self.create_publisher(RobotRegistry, 'robot_registry', 10)
-        timer_period = 2  # seconds
+        super().__init__(robot_name + '_robot_map_node')
+        self.publisher_ = self.create_publisher(OccupancyGrid, robot_name + '/robot_map', 10)
+        timer_period = 1  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.i = 0
         self.robot_name = robot_name
+        # self.navigation_map_pub_ = self.create_publisher(OccupancyGrid, 'robot_map', 10)
+        self.merged_map_sub_ = self.create_subscription(
+            OccupancyGrid,
+            self.robot_name + '/merged_map_debug',
+            self.mergedMapCallback,
+            10)
+        self.merged_map_sub_  # prevent unused variable warning
 
+        self.single_map_sub_ = self.create_subscription(
+            OccupancyGrid,
+            self.robot_name + '/inflated_map_debug',
+            self.singleMapCallback,
+            10)
+        self.single_map_sub_  # prevent unused variable warning
+        
+        self.merged_map_update_ = False
+        self.local_map_update_ = False
+        self.merged_map_msg_ = OccupancyGrid()
 
     def timer_callback(self):
-        msg = RobotRegistry()
+        msg = OccupancyGrid()
         msg.header = Header()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.header.frame_id = self.robot_name + '/base_footprint'
-        msg.robot_name.data = self.robot_name
+        msg.header.frame_id = self.robot_name + '/map'
+        msg.info = self.merged_map_msg_.info 
+        msg.data = self.merged_map_msg_.data
         self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg.robot_name.data)
-        self.i += 1
 
-    
+    def singleMapCallback(self, msg):
+        if self.merged_map_update_ == False:
+            self.merged_map_msg_ = msg
+            
+        pass
+
+
+    def mergedMapCallback(self, msg):
+        self.merged_map_update_ = True
+        self.merged_map_msg_ = msg
+
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -56,14 +88,14 @@ def main(args=None):
 
 
 
-    robot_registry_node = RobotRegistryNode(robot_name)
+    robot_map_node = RobotMapNode(robot_name)
 
-    rclpy.spin(robot_registry_node)
+    rclpy.spin(robot_map_node)
 
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
-    robot_registry_node.destroy_node()
+    robot_map_node.destroy_node()
     rclpy.shutdown()
 
 

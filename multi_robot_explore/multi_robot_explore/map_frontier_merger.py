@@ -84,6 +84,9 @@ class MapAndFrontierMerger:
             # print(peer_map_dict)
             print('mergeMapFromFresh: pmap is received')
             #by not checking the update status of peer map, trust the possibly outdated peer map, since it can only be ever growing
+            if peer_name not in peer_map_dict:
+                print('mergeMapFromFresh: pmap == None')
+                continue
             pmap = peer_map_dict[peer_name]
             if pmap == None:
                 print('mergeMapFromFresh: pmap == None')
@@ -147,8 +150,8 @@ class MapAndFrontierMerger:
                 
                 for pt in offset_f:
                     pt.header.frame_id = self.local_map_.header.frame_id
-                    pt.point.x = pt.point.x + peer_offset[0]
-                    pt.point.y = pt.point.y + peer_offset[1]
+                    pt.point.x = pt.point.x + peer_offset.position.x
+                    pt.point.y = pt.point.y + peer_offset.position.y
 
 
                 for pt in offset_f:
@@ -246,8 +249,8 @@ class MapAndFrontierMerger:
         target_dh = target_map.info.height
         output_map = OccupancyGrid()
         output_map = copy.deepcopy(input_map)
-        offset_x = offset_from_target_to_input[0]
-        offset_y = offset_from_target_to_input[1]
+        offset_x = offset_from_target_to_input.position.x
+        offset_y = offset_from_target_to_input.position.y
         print('(mapExpandFromFresh):offset_x:{}'.format(offset_x))
         print('(mapExpandFromFresh):offset_y:{}'.format(offset_y))
         input_width = input_dw * input_map.info.resolution

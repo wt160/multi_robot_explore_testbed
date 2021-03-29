@@ -22,8 +22,8 @@ from tf2_ros.transform_listener import TransformListener
 from geometry_msgs.msg import Twist, Pose, PoseStamped
 from multi_robot_explore.explore_util import ExploreUtil
 from std_msgs.msg import String
-from multi_robot_interfaces.msg import RobotRegistry, RobotPose, RobotState
-from multi_robot_interfaces.srv import GetPeerRobotPose, GetPeerRobotPid, GetPeerRobotState
+from multi_robot_interfaces.msg import RobotRegistry, RobotPose, RobotState, RobotStatePid
+from multi_robot_interfaces.srv import GetPeerRobotPose, GetPeerRobotPid, GetPeerRobotState, GetPeerRobotStatePid, SetRobotTargetPose
 
 class PeerInterfaceNode(Node):
     def __init__(self, robot_name):
@@ -44,13 +44,15 @@ class PeerInterfaceNode(Node):
         self.robot_registry_sub_  # prevent unused variable warning
         
         #timer for getting current robot pose
-        self.get_current_pose_timer_ = self.create_timer(0.5, self.onGetCurrentPoseTimer)    
+        # self.get_current_pose_timer_ = self.create_timer(2, self.onGetCurrentPoseTimer)    
 
 
         #service server for distributing current robot pose to peer robots
         self.current_pose_srv = self.create_service(GetPeerRobotPose, self.robot_name_ + '/get_current_robot_pose', self.getCurrentRobotPoseCallback)
 
         self.robot_state_srv = self.create_service(GetPeerRobotState, self.robot_name_ + '/get_peer_robot_state', self.getPeerRobotStateCallback)
+
+        self.robot_state_pid_srv = self.create_service(GetPeerRobotStatePid, self.robot_name_ + '/get_peer_robot_state_and_pid', self.getPeerRobotStatePidCallback)
 
         self.declare_parameters(
             namespace='',
@@ -87,6 +89,7 @@ class PeerInterfaceNode(Node):
         self.navigate_to_pose_state_ = self.e_util.NAVIGATION_NO_GOAL
 
         self.init_offset_dict_ = dict()
+        self.init_offset_to_current_robot_dict_ = dict()
         # self.getPeerRobotInitPose()
         
         self.cluster_range_limit_ = 3.0
@@ -98,15 +101,34 @@ class PeerInterfaceNode(Node):
         #peer robot state request client
         self.peer_robot_state_client_dict_ = dict()
 
+        #peer robot state_and_pid request client
+        self.peer_robot_state_and_pic_client_dict_ = dict()
 
     def getCurrentRobotPoseCallback(self, request, response):
 
+        get_robot_current_pose = False
+        while not get_robot_current_pose:
+            if self.getRobotCurrentPose():
+                response.robot_pose = self.current_pose_local_frame_   
+                get_robot_current_pose = True
         self.get_logger().warn('{} getCurrentRobotPoseCallback'.format(self.robot_name_))
-        response.robot_pose = self.current_pose_local_frame_       
         return response
 
+    def setCurrentTargetPose(self, target_pose_in_current_frame):
+        self.current_target_pose_ = target_pose_in_current_frame
+
     def getPeerRobotStateCallback(self, request, response):
-        self.get_logger().warn('{} getPeerRobotStateCallback'.format(self.robot_name_))
+        
+        
+        get_robot_current_pose = False
+        while not get_robot_current_pose:
+            if self.getRobotCurrentPose():
+                self.current_pose_world_frame_ = self.current_pose_local_frame_
+                self.current_pose_world_frame_.position.x = self.current_pose_local_frame_.position.x + self.init_offset_dict_[self.robot_name_].position.x 
+                self.current_pose_world_frame_.position.y = self.current_pose_local_frame_.position.y + self.init_offset_dict_[self.robot_name_].position.y 
+                self.current_pose_world_frame_.position.z = self.current_pose_local_frame_.position.z + self.init_offset_dict_[self.robot_name_].position.z 
+                get_robot_current_pose = True
+        self.get_logger().warn('{} getPeerRobotStateCallback, robot_pose:{},{}'.format(self.robot_name_, self.current_pose_world_frame_.position.x, self.current_pose_world_frame_.position.y))
         response.robot_state = RobotState()
         response.robot_state.robot_name.data = self.robot_name_
         response.robot_state.robot_pose_world_frame = self.current_pose_world_frame_
@@ -114,6 +136,14 @@ class PeerInterfaceNode(Node):
         response.robot_state.current_state = self.current_state_
         response.robot_state.current_target_pose = self.current_target_pose_
         response.robot_state.pid = self.current_robot_pid_
+        return response
+
+    def getPeerRobotStatePidCallback(self, request, response):
+        self.get_logger().warn('{} getPeerRobotStatePidCallback'.format(self.robot_name_))
+        response.robot_state_and_pid = RobotStatePid()
+        response.robot_state_and_pid.robot_name.data = self.robot_name_
+        response.robot_state_and_pid.current_state = self.current_state_
+        response.robot_state_and_pid.pid = self.current_robot_pid_
         return response
 
     def robotRegistryCallback(self, msg):
@@ -211,11 +241,37 @@ class PeerInterfaceNode(Node):
             self.init_offset_dict_[robot].orientation.z = init_offset[5] 
             self.init_offset_dict_[robot].orientation.w = init_offset[6] 
     
+        current_robot_offset_world_pose = self.init_offset_dict_[self.robot_name_]
+        for peer in self.peer_robot_registry_list_:
+            if peer == self.robot_name_:
+                self.init_offset_to_current_robot_dict_[peer] = Pose()
+                self.init_offset_to_current_robot_dict_[peer].position.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].position.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].position.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.w = 1.0
+
+            else:
+                self.init_offset_to_current_robot_dict_[peer] = Pose()
+                self.init_offset_to_current_robot_dict_[peer].position.x = self.init_offset_dict_[peer].position.x - current_robot_offset_world_pose.position.x
+                self.init_offset_to_current_robot_dict_[peer].position.y = self.init_offset_dict_[peer].position.y - current_robot_offset_world_pose.position.y
+                self.init_offset_to_current_robot_dict_[peer].position.z = self.init_offset_dict_[peer].position.z - current_robot_offset_world_pose.position.z
+                self.init_offset_to_current_robot_dict_[peer].orientation.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.w = 1.0
+
+
+
     #peer_list: if given, the list of robot names to request robot state information from, if None, request from self.peer_robot_registry_list_ (all the active robots)
     def getPeerRobotStateFunction(self, peer_list=None):
         service_client_dict = dict()
         service_response_future = dict()
         peer_robot_state_dict = dict()
+        peer_robot_state_update = dict()
+
         if peer_list == None:
             peer_list = self.peer_robot_registry_list_
         for robot in peer_list:
@@ -226,19 +282,20 @@ class PeerInterfaceNode(Node):
                 self.get_logger().error('/get_peer_robot_state service not available in robot {}'.format(robot))
             req = GetPeerRobotState.Request()
             service_response_future[robot] = self.peer_robot_state_client_dict_[robot].call_async(req)
-
+            peer_robot_state_update[robot] = False
         t_0 = time.time()
         peer_robot_state_done = False
         while not peer_robot_state_done and time.time() - t_0 < 10.0:
             peer_robot_state_done = True
             for robot in peer_list:
-                # rclpy.spin_once(self) 
-                # self.get_logger().info('check get_peer_robot_state response future')
-                if service_response_future[robot].done():
-                    response = service_response_future[robot].result()
-                    peer_robot_state_dict[robot] = response 
-                else:
-                    peer_robot_state_done = False
+                if peer_robot_state_update[robot] == False:
+                    # self.get_logger().info('check get_peer_robot_state response future')
+                    if service_response_future[robot].done():
+                        response = service_response_future[robot].result()
+                        peer_robot_state_dict[robot] = response
+                        peer_robot_state_update[robot] = True 
+                    else:
+                        peer_robot_state_done = False
 
         return peer_robot_state_dict
         
@@ -362,6 +419,40 @@ class PeerInterfaceNode(Node):
         self.current_cluster_ = copy.deepcopy(cluster_list)
         return cluster_list 
 
+    def getPeerStatePid(self, peer_list=None):
+        service_client_dict = dict()
+        service_response_future = dict()
+        peer_robot_state_pid_dict = dict()
+        peer_robot_state_update = dict()
+        if peer_list == None:
+            peer_list = self.peer_robot_registry_list_
+        for robot in peer_list:
+            if robot not in self.peer_robot_state_and_pic_client_dict_:                
+                service_name = robot + "/get_peer_robot_state_and_pid"
+                self.peer_robot_state_and_pic_client_dict_[robot] = self.create_client(GetPeerRobotStatePid, service_name)
+            while not self.peer_robot_state_and_pic_client_dict_[robot].wait_for_service(timeout_sec=5.0):
+                self.get_logger().error('/get_peer_robot_state_and_pid service not available in robot {}'.format(robot))
+            req = GetPeerRobotStatePid.Request()
+            service_response_future[robot] = self.peer_robot_state_and_pic_client_dict_[robot].call_async(req)
+            peer_robot_state_update[robot] = False
+
+        t_0 = time.time()
+        peer_robot_state_pid_done = False
+        while not peer_robot_state_pid_done and time.time() - t_0 < 10.0:
+            peer_robot_state_pid_done = True
+            for robot in peer_list:
+                if peer_robot_state_update[robot] == False:
+                    # self.get_logger().info('check get_peer_robot_state response future')
+                    if service_response_future[robot].done():
+                        response = service_response_future[robot].result()
+                        peer_robot_state_pid_dict[robot] = response 
+                        peer_robot_state_update[robot] = True
+                    else:
+                        peer_robot_state_pid_done = False
+
+        return peer_robot_state_pid_dict
+        
+
 
     #request other robots' priority id in the same cluster, if any priority id is greater then current robot's priority id, then current robot is not leader, otherwise current robot is leader 
     def amILeaderAmongCluster(self, cluster_list):
@@ -440,6 +531,27 @@ class PeerInterfaceNode(Node):
         else:
             self.get_logger().info('navigateToPoseAction failed with status: {0}'.format(status))
             self.navigate_to_pose_state_ = self.e_util.NAVIGATION_FAILED
-        
 
-   
+    def sendTargetForPeer(self, peer, target_pose_peer_frame):  
+        service_name = peer + '/set_robot_target_pose'
+        set_peer_robot_target_client = self.create_client(SetRobotTargetPose, service_name)
+        while not set_peer_robot_target_client.wait_for_service(timeout_sec=5.0):
+            self.get_logger().error('/set_robot_target_pose service not available in robot {}'.format(peer))
+        req = SetRobotTargetPose.Request()
+        req.request_robot_name.data = self.robot_name_
+        req.target_pose = target_pose_peer_frame
+        set_peer_robot_target_future = set_peer_robot_target_client.call_async(req)
+
+        self.get_logger().error('Send COMMAND to {} from {}'.format(peer, self.robot_name_))
+
+        t_0 = time.time()
+        send_peer_target_done = False
+        while not send_peer_target_done and time.time() - t_0 < 10.0:
+            send_peer_target_done = True
+            if set_peer_robot_target_future.done():
+                response = set_peer_robot_target_future.result()
+                self.get_logger().error('got response, successfully set_robot_target_pose for robot {}'.format(peer))
+            else:
+                send_peer_target_done = False
+
+

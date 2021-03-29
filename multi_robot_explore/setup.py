@@ -26,6 +26,7 @@ setup(
             'multi_explorer = multi_robot_explore.multi_explore_node:main',
             'get_robot_pose = multi_robot_explore.get_robot_pose_from_tf:main',
             'robot_registry = multi_robot_explore.robot_registry_node:main',
+            'robot_map = multi_robot_explore.robot_map_node:main',
         ],
     },
 )

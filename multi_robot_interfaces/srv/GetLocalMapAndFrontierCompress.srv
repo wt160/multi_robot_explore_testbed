@@ -1,0 +1,4 @@
+std_msgs/String request_robot_name
+---
+char[] map_compress
+multi_robot_interfaces/Frontier[] local_frontier

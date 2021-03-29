@@ -30,7 +30,12 @@ class WindowWFD:
         print('(WindowWFD)offset:{},{}'.format(offset_x, offset_y))
         print('(WindowWFD)curr value:{}'.format(self.raw_map_.data[(int)(curr_y_cell * self.raw_map_.info.width + curr_x_cell)]))
         if not self.e_util.isCellFree(self.raw_map_, curr_x_cell, curr_y_cell, self.thres_):
-            (curr_x_cell, curr_y_cell) = self.e_util.getFreeNeighborRandom((curr_x_cell, curr_y_cell), self.raw_map_, 0, 0.5, self.thres_)
+            curr_xy_cell = self.e_util.getFreeNeighborRandom((curr_x_cell, curr_y_cell), self.raw_map_, 5, 10, self.thres_)
+            if curr_xy_cell != None:
+                curr_x_cell = curr_xy_cell[0]
+                curr_y_cell = curr_xy_cell[1]
+
+
         dw = self.raw_map_.info.width
         dh = self.raw_map_.info.height
         queue = deque() 

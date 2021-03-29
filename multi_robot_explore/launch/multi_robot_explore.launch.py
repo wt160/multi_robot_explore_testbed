@@ -36,4 +36,15 @@ def generate_launch_description():
 
         ),
 
+        Node(
+            package='multi_robot_explore',
+            executable='robot_map',
+            # name='robot_registry',
+            output='screen',
+            emulate_tty=True,
+            # parameters=[param_dir],
+            arguments=[robot_name]         
+
+        ),
+
     ])
