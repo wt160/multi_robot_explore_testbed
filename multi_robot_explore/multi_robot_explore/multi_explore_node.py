@@ -1467,7 +1467,8 @@ class MultiExploreNode(Node):
         elif self.current_state_ == self.e_util.SYSTEM_SHUTDOWN:  
             return self.e_util.SYSTEM_SHUTDOWN  
         
-         
+    def updateMultiHierarchicalCoordination(self):
+        #
         
         
 
