@@ -379,7 +379,7 @@ class MultiExploreNode(Node):
                     f_msg.frontier.append(pt_stamped)
                 temp_window_frontiers_msg_.append(f_msg)
                 temp_window_frontiers_.append(f_connect)
-                temp_window_frontiers_rank_.append(f_connect_cell[0][3])
+                temp_window_frontiers_rank_.append(f_connect_cell[0][2])
 
 
             #update self.local_frontiers_msg and self.local_frontiers_ with temp_window_frontiers_ , temp_window_frontiers_msg_
@@ -799,7 +799,7 @@ class MultiExploreNode(Node):
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.current_state_ = self.CHECK_ENVIRONMENT
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
-                self.current_state_ = self.GOING_TO_TARGET
+                self.current_state_ = self.CHECK_ENVIRONMENT
             pass
         elif self.current_state_ == self.CHECK_ENVIRONMENT:
             self.get_logger().error('Enter CHECK_ENVIRONMENT')
@@ -810,15 +810,15 @@ class MultiExploreNode(Node):
                 self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers')
                 self.current_state_ = self.CHECK_ENVIRONMENT
             else:
-                if len(self.window_frontiers) == 0:
+                if len(self.window_frontiers) == 0 or len(self.window_frontiers_rank) == 0:
                     self.current_state_ = self.FINISH_TARGET_WINDOW_DONE
                 else:
                     self.current_state_ = self.FINISH_TARGET_WINDOW_NOT_DONE
                     #self.current_state_ = self.CHECK_ENVIRONMENT
-            
+                
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_DONE:
             self.get_logger().error('Enter FINISH_TARGET_WINDOW_DONE')
-            
+            self.current_state_ = self.CHECK_ENVIRONMENT           
             #request frontiers from other robots, and merge, get new assignment of frontiers
             pass
         elif self.current_state_ == self.FINISH_TARGET_WINDOW_NOT_DONE:            
@@ -828,9 +828,10 @@ class MultiExploreNode(Node):
             choose_target_map = copy.deepcopy(self.inflated_local_map_) 
             find_valid_target = False
             while find_valid_target == False:
+
                 closest_rank_index = self.window_frontiers_rank.index(min(self.window_frontiers_rank))
                 f_connect = self.window_frontiers[closest_rank_index]
-                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 14)
+                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 20)
                 if target_pt == None:
                     del self.window_frontiers_rank[closest_rank_index]
                     del self.window_frontiers[closest_rank_index]
@@ -873,7 +874,7 @@ class MultiExploreNode(Node):
                 self.get_logger().warn('min PathLength:{}'.format(min_length))
                 self.get_logger().error('closest target:{},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
                 find_valid_target = True
-            input("Press Enter to continue...")
+            #input("Press Enter to continue...")
             self.current_state_ = self.GOING_TO_TARGET
 
 

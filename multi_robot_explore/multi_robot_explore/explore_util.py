@@ -112,7 +112,7 @@ class ExploreUtil:
                 max_dist = dist
                 max_cell = pt_cell
         
-        observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 7, radius)
+        observe_pt_cell = self.getFreeNeighborRandom(max_cell, map, 12, radius)
         if observe_pt_cell == None:
             return None
         observe_pt = (observe_pt_cell[0]*map.info.resolution + map.info.origin.position.x, observe_pt_cell[1]*map.info.resolution + map.info.origin.position.y)
@@ -208,6 +208,15 @@ class ExploreUtil:
         for i in range(len(h_index)):            
             h = h_index[i]
             w = w_index[i]
+            neighbors = self.get8ConnectNeighbors((w, h), dw, dh)
+            is_single = True
+            for neigh in neighbors:
+                if output_array[neigh[1],neigh[0]] > 55:
+                    is_single = False
+                    break
+            if is_single == True:
+                continue
+
             if h - radius >= 0 and w - radius >= 0:
                 output_array[h - radius : h + radius, w - radius : w + radius] = 100
             elif h - radius < 0 and w - radius >= 0:
