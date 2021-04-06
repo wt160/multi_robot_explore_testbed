@@ -6,6 +6,7 @@ import numpy as np
 import math
 from queue import PriorityQueue 
 from heapq import *
+from datetime import datetime
 
 class ExploreUtil:
     def __init__(self):
@@ -37,7 +38,7 @@ class ExploreUtil:
         self.WAIT_FOR_COMMAND = 8
         self.NO_PEER_STATE = 9
         self.HAVE_PEER_STATE = 10
-
+        self.FINISH_TASK = 11
         self.get_free_neighbor_trial_limit = 200
 
     def removeCurrentRobotFootprint(self, map, footprint_pos, robot_radius_cell_size=4):
@@ -108,8 +109,22 @@ class ExploreUtil:
 
         return q
         
+    def isCellUnknown(self, map, x_cell, y_cell):
+        idx = (int)(y_cell * map.info.width + x_cell)
+        if idx > len(map.data)-1:
+            return True
+        value = map.data[idx]
+        # if value != -1:
+            # print("value:{}".format(value))
+        if value == -1:
+            return True
+        else:
+            return False
+
     def isCellObs(self, map, x_cell, y_cell):
         idx = (int)(y_cell * map.info.width + x_cell)
+        if idx > len(map.data)-1:
+            return True
         value = map.data[idx]
         # if value != -1:
             # print("value:{}".format(value))
@@ -267,6 +282,7 @@ class ExploreUtil:
         condition = True
         neigh = (0, 0)
         trial_num = 0
+        random.seed(datetime.now())
         while condition and trial_num < self.get_free_neighbor_trial_limit:
             r = (max_radius - min_radius) * random.random() + min_radius
             theta = random.random() * 2 * 3.14159
@@ -275,12 +291,10 @@ class ExploreUtil:
             # neigh[1] = cell[1] + (int)(r * math.sin(theta))
             print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
             trial_num = trial_num + 1
-            if self.checkDirectLineCrossObs(cell, neigh, map):
+            if self.checkDirectLineCrossObs(cell, neigh, map) or self.isCellObs(map, neigh[0], neigh[1]) or self.isCellUnknown(map, neigh[0], neigh[1]):
                 condition = True
             else:
                 condition = False
-            # if self.isCellFree(map, neigh[0], neigh[1], free_thres):
-            #     condition = False
         if condition == True:
             return None
         return neigh

@@ -154,6 +154,7 @@ class MultiExploreNode(Node):
 
         self.going_to_target_failed_times_ = 0
         self.is_leader_in_current_cluster = False
+        self.last_failed_frontier_pt_ = None
 
     def setRobotState(self, state):
         self.current_state_ = state
@@ -411,7 +412,7 @@ class MultiExploreNode(Node):
             for f_connect_cell in window_frontiers_cell:
                 f_connect = []
                 f_msg = Frontier()
-                if len(f_connect_cell)<3:
+                if len(f_connect_cell)<6:
                     continue
                 for f_cell in f_connect_cell:
                     f_double = (f_cell[0]*current_map.info.resolution + current_map.info.origin.position.x, f_cell[1]*current_map.info.resolution + current_map.info.origin.position.y)
@@ -1214,6 +1215,109 @@ class MultiExploreNode(Node):
                 self.get_logger().warn('assignTargetDone!!!!!')
 
 
+    def updateMultiHierarchicalCoordination(self):
+        #state of current robot: GOING_TO_TARGET, WAITING_NEW_TARGET, REACH_TARGET, FINISH_TARGET_WINDOW_NOT_DONE, 
+        if self.current_state_ == self.e_util.SYSTEM_INIT:
+            #robot rotate inplace
+            self.r_interface_.rotateNCircles(1, 0.4)
+            # self.updateWindowWFD()
+            self.r_interface_.stopAtPlace()
+            #self.current_state_ = self.TEST_MERGE_MAP
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+        elif self.current_state_ == self.e_util.GOING_TO_TARGET:
+            self.get_logger().error('updateMulti: enter GOING_TO_TARGET')
+            
+            if self.current_target_pos_ == None:
+                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                return
+            self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
+            self.r_interface_.navigateToPose(self.current_target_pos_)
+            navigation_time0 = time.time()
+            self.getRobotCurrentPos()
+            direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+            navigation_time0 = time.time()
+            if direct_length_square > 5.0*5.0:
+                replan_time = 4.5
+            elif direct_length_square > 3.0*3.0:
+                replan_time = 3.5
+            elif direct_length_square > 1.0*1.0:
+                replan_time = 3.0
+            else:
+                replan_time = 2.2
+            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+                # self.get_logger().warn('navigating to target...')
+                
+                if time.time() - navigation_time0 > replan_time:
+                    self.get_logger().warn('start checking environment...')
+
+                    self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                    
+                pass
+            if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
+                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
+                current_cell = ((int)((self.current_target_pos_.position.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_target_pos_.position.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
+                updated_cell = self.e_util.getFreeNeighborRandom(current_cell, self.inflated_local_map_, 7, 14)
+                if updated_cell == None:
+                    self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
+                    return
+                updated_target_pt = (updated_cell[0]*self.inflated_local_map_.info.resolution + self.inflated_local_map_.info.origin.position.x, updated_cell[1]*self.inflated_local_map_.info.resolution + self.inflated_local_map_.info.origin.position.y)
+                self.current_target_pos_.position.x = updated_target_pt[0]
+                self.current_target_pos_.position.y = updated_target_pt[1]
+
+
+                if self.previous_state_ != self.e_util.GOING_TO_TARGET:
+                    self.going_to_target_failed_times_ = 0
+                else:
+                    self.going_to_target_failed_times_ += 1
+                self.previous_state_ = self.current_state_ 
+                if self.going_to_target_failed_times_ > 5:
+                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                    self.last_failed_frontier_pt_ = self.current_target_pos_
+                    self.going_to_target_failed_times_ = 0
+                    self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
+                else:
+                    self.setRobotState(self.e_util.GOING_TO_TARGET) 
+
+
+
+            # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+        elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
+            self.get_logger().error('Enter CHECK_ENVIRONMENT')
+            
+            #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
+            #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
+
+            self.window_frontiers, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
+            if self.window_frontiers == -1 or self.window_frontiers == -2:
+                self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
+                self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+            else:   
+                #getCluster() might block, or return no cluster 
+                cluster_list, cluster_pose_dict = self.peer_interface_.getClusterAndPoses()
+                peer_pose_dict = self.peer_interface_.getPeerRobotPosesInLocalFrameUsingTf()
+                self.get_logger().warn('getCluster() result:')
+                for cluster in cluster_list:
+                    self.get_logger().warn('cluster has {}'.format(cluster))
+                    
+                self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, cluster_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
+                self.current_target_pos_ = self.group_coordinator_.hierarchicalCoordinationAssignment()
+                if self.current_target_pos_ == None:
+                    self.get_logger().error('finish local_frontiers, done for current robot')
+                    self.setRobotState(self.e_util.FINISH_TASK)
+                else:
+                    self.setRobotState(self.e_util.GOING_TO_TARGET)
+                
+                    # no window frontiers available, find target frontier from self.local_frontiers_msg_, considering distance from peer robot_tracks 
+        elif self.current_state_ == self.e_util.FINISH_TASK:
+            self.r_interface_.rotateNCircles(1, 0.4)
+            self.get_logger().error('finish local_frontiers, done for current robot')
+
+                
 
     
     def updateMultiCoordinatedGreedy(self):
@@ -1467,9 +1571,7 @@ class MultiExploreNode(Node):
         elif self.current_state_ == self.e_util.SYSTEM_SHUTDOWN:  
             return self.e_util.SYSTEM_SHUTDOWN  
         
-    def updateMultiHierarchicalCoordination(self):
-        #
-        
+    
         
 
 def main(args=None):
@@ -1496,7 +1598,7 @@ def main(args=None):
     explore_node.initRobotUtil()
     # input('({})press to continue'.format(robot_name))
     while rclpy.ok():
-        state = explore_node.updateMultiCoordinatedGreedy()
+        state = explore_node.updateMultiHierarchicalCoordination()
 
         if state == explore_node.e_util.SYSTEM_SHUTDOWN:
             break

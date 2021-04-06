@@ -14,8 +14,8 @@ from nav2_msgs.action import ComputePathToPose, NavigateToPose
 from nav_msgs.msg import OccupancyGrid
 from multi_robot_explore.explore_util import ExploreUtil 
 from geometry_msgs.msg import PointStamped
-from geometry_msgs.msg import Pose, PoseStamped
-from multi_robot_interfaces.msg import Frontier
+from geometry_msgs.msg import Pose, PoseStamped, Point
+from multi_robot_interfaces.msg import Frontier, RobotTracks
 from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, GetLocalMapAndFrontierCompress
 from robot_control_interface.robot_control_node import RobotControlInterface
 from multi_robot_explore.peer_interface_node import PeerInterfaceNode
@@ -31,11 +31,13 @@ class GroupCoordinator(Node):
         #robot_pos: tuple double(x, y)
         self.local_map_ = None
         self.local_frontiers_msg_ = None 
+        self.window_frontiers_ = None
         self.cluster_list_ = None 
         self.robot_name_ = robot_name 
         self.curr_pos_ = None
         self.e_util = ExploreUtil()
         self.peer_map_ = dict()
+        self.cluster_pose_dict_ = dict()
         self.peer_local_frontiers_ = dict()
         self.peer_data_updated_ = dict()
         self.merge_map_frontier_timeout_ = 5
@@ -50,13 +52,32 @@ class GroupCoordinator(Node):
         self.compute_path_client_dict_ = dict()
         self.current_computing_robot_ = None
         self.get_path_done_dict_ = dict()
+        self.window_frontiers_rank_ = None
 
+        self.corridor_distance_ = 2.5
 
         self.debug_merge_frontiers_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/merged_frontiers_debug', 10)
         self.debug_merge_map_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/merged_map_debug', 10)
+            
+        self.robot_track_sub_ = self.create_subscription(
+            RobotTracks,
+            'robot_tracks',
+            self.robotTrackCallback,
+            10)
+        self.robot_track_sub_  # prevent unused variable warning
+
         self.peer_merge_map_pub_dict_ = dict()
         self.get_path_result_dict_ = dict()
+        self.peer_tracks_dict_ = dict()
 
+
+    def robotTrackCallback(self, msg):
+        peer_name = msg.robot_name.data
+        track = msg.robot_tracks
+
+        self.peer_tracks_dict_[peer_name] = track
+
+    
 
 
     def setGroupInfo(self, cluster_list, local_map, local_frontiers_msg, cluster_state_dict, init_offset_to_world_dict):
@@ -152,7 +173,7 @@ class GroupCoordinator(Node):
     def distBetweenPoseAndFrontiers(self, pose, frontier, map, min_radius, max_radius):
         fpt = (frontier.frontier[0].point.x, frontier.frontier[0].point.y)
         return (fpt[0] - pose.position.x)*(fpt[0] - pose.position.x) + (fpt[1] - pose.position.y)*(fpt[1] - pose.position.y)
-    
+
     def extractTargetFromFrontier(self, frontier, map, min_radius, max_radius):
         f_connect = []
         for pt in frontier.frontier:
@@ -259,8 +280,183 @@ class GroupCoordinator(Node):
 
         map.data = map_array.ravel().tolist()
         
-        
+    # when the window_frontier's furthest pt dist from other tracks is smaller than a threshold, means all these window_frontiers are explored, then search local frontiers, 
+    # find furthest frontier in the local_frontiers domain, if no frontier left, 
+    #
+    def hierarchicalCoordinationAssignment(self):
+        self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
+        curr_target_pose_local_frame = Pose()
+        # if len(self.cluster_list_) == 1 and self.cluster_list_[0] == self.robot_name_:
+        curr_robot_pose = self.cluster_pose_dict_[self.robot_name_]
+        curr_robot_world_frame_pose = Pose()
+        curr_robot_world_frame_pose.position.x = curr_robot_pose.position.x + self.init_offset_to_world_dict_[self.robot_name_].position.x 
+        curr_robot_world_frame_pose.position.y = curr_robot_pose.position.y + self.init_offset_to_world_dict_[self.robot_name_].position.y 
+        
+        target_pt = None
+        min_dist = 100000000
+        if self.window_frontiers_rank_ == None or len(self.window_frontiers_rank_) == 0:
+            target_pt = None
+        else:
+            closest_rank_index = self.window_frontiers_rank_.index(min(self.window_frontiers_rank_)) 
+            f_connect = self.window_frontiers_[closest_rank_index]
+            target_pt = self.e_util.getObservePtForFrontiers(f_connect, self.local_map_, 13, 18)
+        choose_last_failed_target_frontier = False
+        if target_pt != None:
+            
+            if self.last_failed_frontier_pt_ != None and (target_pt[0] - self.last_failed_frontier_pt_.position.x)*(target_pt[0] - self.last_failed_frontier_pt_.position.x) + (target_pt[1] - curr_robot_pose.position.y)*(target_pt[1] - curr_robot_pose.position.y) < 2.5*2.5:
+                choose_last_failed_target_frontier = True 
+            else:
+                if (target_pt[0] - curr_robot_pose.position.x)*(target_pt[0] - curr_robot_pose.position.x) + (target_pt[1] - curr_robot_pose.position.y)*(target_pt[1] - curr_robot_pose.position.y) < 2.5*2.5:
+                    #corridor case, just need to stick to the closest frontier and move forward 
+                    self.get_logger().warn('coorridor case, go to the closest frontier')
+                    curr_target_pose_local_frame.position.x = target_pt[0]
+                    curr_target_pose_local_frame.position.y = target_pt[1]
+                    curr_target_pose_local_frame.position.z = 0.0
+                    return curr_target_pose_local_frame
+
+
+        if target_pt == None or (target_pt[0] - curr_robot_pose.position.x)*(target_pt[0] - curr_robot_pose.position.x) + (target_pt[1] - curr_robot_pose.position.y)*(target_pt[1] - curr_robot_pose.position.y) > 2.5*2.5 or choose_last_failed_target_frontier:
+            #no nearby peer robots, find the local_frontier that is furthest away from peer robot tracks 
+            track_list = []
+            if self.peer_tracks_dict_ == dict():
+                for peer in self.peer_pose_dict_:
+                    if peer != self.robot_name_:
+                        track = Point()
+                        track.x = self.peer_pose_dict_[peer].position.x + self.init_offset_to_world_dict_[peer].position.x
+                        track.y = self.peer_pose_dict_[peer].position.y + self.init_offset_to_world_dict_[peer].position.y 
+                        track_list.append(track) 
+            else:
+                for peer in self.peer_tracks_dict_:
+                    if peer != self.robot_name_:
+                        for t in self.peer_tracks_dict_[peer]:
+                            track_list.append(t)
+            f_pt_world_frame_list = []
+            biggest_dist_to_closest_track = 100000000
+            furthest_f_pt_to_tracks = None
+            if len(self.window_frontiers_) > 0:
+                for f_local in self.window_frontiers_:
+                    f_target_pt = self.e_util.getObservePtForFrontiers(f_local, self.local_map_, 13, 18)
+                    if f_target_pt == None or (self.last_failed_frontier_pt_ != None and (f_target_pt[0] - self.last_failed_frontier_pt_.position.x)*(f_target_pt[0] - self.last_failed_frontier_pt_.position.x) < 2.5*2.5):
+                        continue
+                    f_target_pt_world_frame = [0.0, 0.0]   
+                    f_target_pt_world_frame[0] = f_target_pt[0] + self.init_offset_to_world_dict_[self.robot_name_].position.x 
+                    f_target_pt_world_frame[1] = f_target_pt[1] + self.init_offset_to_world_dict_[self.robot_name_].position.y 
+                    f_pt_world_frame_list.append(f_target_pt_world_frame) 
+                furthest_dist = -1.0
+                # print("track_list:") 
+                # print(track_list)  
+                small_dist_to_tracks_list = []
+                if len(f_pt_world_frame_list) != 0:
+                    for f_index in range(len(f_pt_world_frame_list)):
+                        smallest_dist = 100000000
+                        f_pt = f_pt_world_frame_list[f_index]
+                        for t in track_list: 
+                            
+                            dist = (t.x - f_pt[0])*(t.x - f_pt[0]) + (t.y - f_pt[1])*(t.y - f_pt[1]) 
+                            if dist < smallest_dist:
+                                smallest_dist = dist 
+                        small_dist_to_tracks_list.append(copy.deepcopy(smallest_dist))
+                    furthest_f_pt_to_tracks_index = small_dist_to_tracks_list.index(max(small_dist_to_tracks_list))
+                    biggest_dist_to_closest_track = small_dist_to_tracks_list[furthest_f_pt_to_tracks_index]
+                    furthest_f_pt_to_tracks = f_pt_world_frame_list[furthest_f_pt_to_tracks_index]
+                    #furthest_f_pt_to_tracks: the final target to return 
+            if biggest_dist_to_closest_track < 6.0 or len(f_pt_world_frame_list) == 0:
+                merged_map, merged_frontiers = self.mergePeerFrontiers(self.peer_list_)
+                self.debug_merge_map_pub_.publish(merged_map)
+                
+                local_f_pt_world_frame_list = []
+                for f_local in self.local_frontiers_:
+                    local_f_target_pt = self.e_util.getObservePtForFrontiers(f_local, self.local_map_, 13, 18)
+                    if local_f_target_pt == None:
+                        continue
+                    local_f_target_pt_world_frame = [0.0, 0.0]   
+                    local_f_target_pt_world_frame[0] = local_f_target_pt[0] + self.init_offset_to_world_dict_[self.robot_name_].position.x 
+                    local_f_target_pt_world_frame[1] = local_f_target_pt[1] + self.init_offset_to_world_dict_[self.robot_name_].position.y 
+                    local_f_pt_world_frame_list.append(local_f_target_pt_world_frame)   
+                furthest_local_f_pt_to_tracks = None 
+                furthest_dist = -1.0
+                # print("track_list:") 
+                # print(track_list)  
+                local_small_dist_to_tracks_list = []
+                if len(local_f_pt_world_frame_list) != 0:
+                    for f_index in range(len(local_f_pt_world_frame_list)):
+                        smallest_dist = 100000000
+                        f_pt = local_f_pt_world_frame_list[f_index]
+                        for t in track_list: 
+                            
+                            dist = (t.x - f_pt[0])*(t.x - f_pt[0]) + (t.y - f_pt[1])*(t.y - f_pt[1]) 
+                            if dist < smallest_dist:
+                                smallest_dist = dist 
+                        local_small_dist_to_tracks_list.append(copy.deepcopy(smallest_dist))
+                    furthest_local_f_pt_to_tracks_index = local_small_dist_to_tracks_list.index(max(local_small_dist_to_tracks_list))
+                    local_biggest_dist_to_closest_track = local_small_dist_to_tracks_list[furthest_local_f_pt_to_tracks_index]
+                    if local_biggest_dist_to_closest_track < 1.5:
+                        #the local frontiers are all explored by peers
+                        self.get_logger().warn('the local_frontiers are all explored by peers')
+                        self.get_logger().warn('the local_frontiers are all explored by peers')
+
+                        return None
+                    furthest_f_pt_to_tracks = local_f_pt_world_frame_list[furthest_local_f_pt_to_tracks_index]
+                else:
+                    # no local_frontiers left to explore, done with exploration 
+                    self.get_logger().warn('no local_frontiers left to explore, done with exploration')
+                    self.get_logger().warn('no local_frontiers left to explore, done with exploration')
+                    return None 
+            furthest_f_pt_local_frame = [0.0, 0.0]
+            furthest_f_pt_local_frame[0] = furthest_f_pt_to_tracks[0] - self.init_offset_to_world_dict_[self.robot_name_].position.x 
+            furthest_f_pt_local_frame[1] = furthest_f_pt_to_tracks[1] - self.init_offset_to_world_dict_[self.robot_name_].position.y 
+            curr_target_pose_local_frame.position.x = furthest_f_pt_local_frame[0]
+            curr_target_pose_local_frame.position.y = furthest_f_pt_local_frame[1] 
+            curr_target_pose_local_frame.position.z = 0.0 
+            self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            self.get_logger().error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+
+            return curr_target_pose_local_frame
+
+        # else:
+            
+            #current robot has nearby peers, need to consider their position when deciding next target, find the frontiers that are closer to curr_robot than to the peers in current cluster, then find the one that are furthest from peers in this subset 
+
+
+    def setPeerInfo(self, peer_list, peer_pose_dict, cluster_list, cluster_pose_dict, window_frontiers, window_frontiers_rank, local_frontiers, local_frontiers_msg,local_inflated_map, init_offset_to_world_dict, last_failed_frontier_pt):
+        self.peer_list_ = peer_list
+        self.peer_pose_dict_ = peer_pose_dict
+        self.cluster_list_ = cluster_list 
+        self.cluster_pose_dict_ = cluster_pose_dict 
+        self.window_frontiers_ = window_frontiers
+        self.local_map_ = local_inflated_map
+        self.window_frontiers_rank_ = window_frontiers_rank
+        self.init_offset_to_world_dict_ = init_offset_to_world_dict
+        self.local_frontiers_ = local_frontiers
+        self.local_frontiers_msg_ = local_frontiers_msg 
+        self.last_failed_frontier_pt_ = last_failed_frontier_pt
+        current_robot_offset_world_pose = self.init_offset_to_world_dict_[self.robot_name_]
+        for peer in self.init_offset_to_world_dict_:
+            if peer == self.robot_name_:
+                self.init_offset_to_current_robot_dict_[peer] = Pose()
+                self.init_offset_to_current_robot_dict_[peer].position.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].position.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].position.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.w = 1.0
+
+            else:
+                self.init_offset_to_current_robot_dict_[peer] = Pose()
+                self.init_offset_to_current_robot_dict_[peer].position.x = self.init_offset_to_world_dict_[peer].position.x - current_robot_offset_world_pose.position.x
+                self.init_offset_to_current_robot_dict_[peer].position.y = self.init_offset_to_world_dict_[peer].position.y - current_robot_offset_world_pose.position.y
+                self.init_offset_to_current_robot_dict_[peer].position.z = self.init_offset_to_world_dict_[peer].position.z - current_robot_offset_world_pose.position.z
+                self.init_offset_to_current_robot_dict_[peer].orientation.x = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.y = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.z = 0.0
+                self.init_offset_to_current_robot_dict_[peer].orientation.w = 1.0
 
     def coordinatedGreedyAssignment(self):
         #first, merge the map and frontiers, all the frontiers are in self.robot_name_'s local frame
@@ -600,9 +796,9 @@ class GroupCoordinator(Node):
         # second way, reassign targets for all the robots in the cluster, no matter what states they are in, all follow the coordinated greedy algorithm 
         ############################
 
+        
 
-
-    def mergePeerFrontiers(self):
+    def mergePeerFrontiers(self, peer_list):
         #return merged_frontiers, all the frontiers are in self.robot_name_'s local frame
 
         #send service request to other nodes, block until got the map and frontiers  or timeout (2 seconds for now): self.merge_map_frontier_timeout_
@@ -612,7 +808,7 @@ class GroupCoordinator(Node):
         # for robot in self.robot_peers_:
         self.peer_map_.clear()
         self.peer_local_frontiers_.clear()
-        for robot in self.cluster_list_:
+        for robot in peer_list:
             service_name = robot + '/get_local_map_and_frontier_compress'
             service_client_dict[robot] = self.create_client(GetLocalMapAndFrontierCompress, service_name)
             while not service_client_dict[robot].wait_for_service(timeout_sec=5.0):
@@ -633,7 +829,7 @@ class GroupCoordinator(Node):
         peer_update_done = False
         while not peer_update_done and time.time() - t_0 < 3:  
             peer_update_done = True
-            for robot in self.cluster_list_:
+            for robot in peer_list:
                 # rclpy.spin_once(self)
                 if self.peer_data_updated_[robot] == True:
                     continue
@@ -664,7 +860,7 @@ class GroupCoordinator(Node):
             pass
         else:
             is_all_peer_update_failed = True
-            for peer in self.cluster_list_:
+            for peer in peer_list:
                 if self.peer_data_updated_[peer] == True:
                     is_all_peer_update_failed = False
                     break
@@ -677,7 +873,7 @@ class GroupCoordinator(Node):
         map_frontier_merger = MapAndFrontierMerger(self.robot_name_)
         map_frontier_merger.setLocalMapFromFresh(self.local_map_)
         map_frontier_merger.setLocalFrontiers(self.local_frontiers_msg_)
-        map_frontier_merger.setPeerInformation(self.cluster_list_, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.init_offset_to_current_robot_dict_)
+        map_frontier_merger.setPeerInformation(peer_list, self.peer_map_, self.peer_local_frontiers_, self.peer_data_updated_, self.init_offset_to_current_robot_dict_)
 
         merge_t0 = time.time()
         merged_map, merged_frontiers = map_frontier_merger.mergeMapAndFrontiers()

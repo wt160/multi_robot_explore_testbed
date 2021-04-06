@@ -10,6 +10,7 @@ import yaml
 import threading
 import math
 import copy
+import std_msgs
 from collections import deque
 from nav_msgs.msg import OccupancyGrid
 from geometry_msgs.msg import PoseStamped
@@ -19,10 +20,11 @@ from threading import Thread
 from tf2_ros import LookupException
 from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
-from geometry_msgs.msg import Twist, Pose, PoseStamped
+from geometry_msgs.msg import Twist, Pose, PoseStamped, Point 
 from multi_robot_explore.explore_util import ExploreUtil
-from std_msgs.msg import String
-from multi_robot_interfaces.msg import RobotRegistry, RobotPose, RobotState, RobotStatePid
+from std_msgs.msg import String, Header
+from visualization_msgs.msg import MarkerArray, Marker
+from multi_robot_interfaces.msg import RobotRegistry, RobotPose, RobotState, RobotStatePid, RobotTracks
 from multi_robot_interfaces.srv import GetPeerRobotPose, GetPeerRobotPid, GetPeerRobotState, GetPeerRobotStatePid, SetRobotTargetPose
 
 class PeerInterfaceNode(Node):
@@ -50,10 +52,16 @@ class PeerInterfaceNode(Node):
         #service server for distributing current robot pose to peer robots
         self.current_pose_srv = self.create_service(GetPeerRobotPose, self.robot_name_ + '/get_current_robot_pose', self.getCurrentRobotPoseCallback)
 
-        self.robot_state_srv = self.create_service(GetPeerRobotState, self.robot_name_ + '/get_peer_robot_state', self.getPeerRobotStateCallback)
+        # self.robot_state_srv = self.create_service(GetPeerRobotState, self.robot_name_ + '/get_peer_robot_state', self.getPeerRobotStateCallback)
 
-        self.robot_state_pid_srv = self.create_service(GetPeerRobotStatePid, self.robot_name_ + '/get_peer_robot_state_and_pid', self.getPeerRobotStatePidCallback)
+        # self.robot_state_pid_srv = self.create_service(GetPeerRobotStatePid, self.robot_name_ + '/get_peer_robot_state_and_pid', self.getPeerRobotStatePidCallback)
 
+        timer_period = 2.5  # seconds
+        self.timer = self.create_timer(timer_period, self.timerCallback)
+        self.robottrack_publisher_ = self.create_publisher(RobotTracks, 'robot_tracks', 10)
+        self.robottrack_marker_publisher_ = self.create_publisher(Marker, self.robot_name_ + '/robot_tracks_marker', 10)
+        self.robot_tracks = []
+        self.last_track_ = Point()
         self.declare_parameters(
             namespace='',
             parameters=[
@@ -62,6 +70,7 @@ class PeerInterfaceNode(Node):
                 ('tb0_init_offset', None),
                 ('tb1_init_offset', None),
                 ('tb2_init_offset', None),
+                ('tb3_init_offset', None),
                 ('pid', None)
             ]
         )
@@ -92,7 +101,7 @@ class PeerInterfaceNode(Node):
         self.init_offset_to_current_robot_dict_ = dict()
         # self.getPeerRobotInitPose()
         
-        self.cluster_range_limit_ = 3.0
+        self.cluster_range_limit_ = 5.5
         self.current_cluster_ = []
 
         #priority id request client
@@ -103,6 +112,67 @@ class PeerInterfaceNode(Node):
 
         #peer robot state_and_pid request client
         self.peer_robot_state_and_pic_client_dict_ = dict()
+
+    def publishRobotTrackMarker(self, robot_name, robot_tracks):
+        m = Marker()
+        m.header = Header()
+        m.header.stamp = self.get_clock().now().to_msg()
+        m.header.frame_id = "world"
+        m.id = 0
+        m.type = 7
+        m.action = 0
+        m.scale.x = 0.5
+        m.scale.y = 0.5
+        m.scale.z = 0.5
+        if robot_name == 'tb0':
+            m.color.r = 0.0
+            m.color.g = 1.0
+            m.color.b = 0.0
+            m.color.a = 1.0
+        elif robot_name == 'tb1':
+            m.color.r = 1.0
+            m.color.g = 0.0
+            m.color.b = 0.0
+            m.color.a = 1.0
+        elif robot_name == 'tb2':
+            m.color.r = 0.0
+            m.color.g = 1.0
+            m.color.b = 1.0
+            m.color.a = 1.0
+        elif robot_name == 'tb3':
+            m.color.r = 0.0
+            m.color.g = 0.0
+            m.color.b = 1.0
+            m.color.a = 1.0
+
+        m.points = robot_tracks
+        self.robottrack_marker_publisher_.publish(m)
+
+    def timerCallback(self):
+        msg = RobotTracks()
+        msg.robot_name.data = self.robot_name_
+        if self.getRobotCurrentPose():
+            curr_pt = Point()
+            curr_pt.x = self.current_pose_world_frame_.position.x
+            curr_pt.y = self.current_pose_world_frame_.position.y
+            curr_pt.z = 0.0
+            if (curr_pt.x - self.last_track_.x)*(curr_pt.x - self.last_track_.x) + (curr_pt.y - self.last_track_.y)*(curr_pt.y - self.last_track_.y) > 1.5*1.5:
+                self.robot_tracks.append(curr_pt)
+            msg.robot_tracks = self.robot_tracks 
+            self.robottrack_publisher_.publish(msg)
+            self.publishRobotTrackMarker(self.robot_name_, msg.robot_tracks)
+            self.last_track_ = curr_pt
+        else:
+            self.get_logger().error("timer_callback():getRobotCurrentPose() failed, something is wrong")
+            return
+
+        self.get_logger().error('Publishing {}''s RobotTracks'.format(self.robot_name_))
+        self.get_logger().warn('******************************************')
+        self.get_logger().warn('******************************************')
+        self.get_logger().warn('******************************************')
+        self.get_logger().warn('******************************************')
+        self.get_logger().warn('******************************************')
+
 
     def getCurrentRobotPoseCallback(self, request, response):
 
@@ -216,6 +286,9 @@ class PeerInterfaceNode(Node):
             self.current_pose_local_frame_.orientation.y = transform.transform.rotation.y
             self.current_pose_local_frame_.orientation.z = transform.transform.rotation.z
             self.current_pose_local_frame_.orientation.w = transform.transform.rotation.w
+            self.current_pose_world_frame_.position.x = self.current_pose_local_frame_.position.x + self.init_offset_dict_[self.robot_name_].position.x 
+            self.current_pose_world_frame_.position.y = self.current_pose_local_frame_.position.y + self.init_offset_dict_[self.robot_name_].position.y 
+            self.current_pose_world_frame_.position.z = self.current_pose_local_frame_.position.z + self.init_offset_dict_[self.robot_name_].position.z 
             t_1 = time.time()
             self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pose_local_frame_.position.x, self.current_pose_local_frame_.position.y, t_1 - t_0))
             
@@ -301,6 +374,33 @@ class PeerInterfaceNode(Node):
         
 
 
+    def getPeerRobotPosesInLocalFrameUsingTf(self):
+        peer_robot_pose_dict = dict()
+        for robot in self.peer_robot_registry_list_:
+            when = rclpy.time.Time()
+            try:
+                # Suspends callback until transform becomes available
+                t_0 = time.time()
+                transform = self._tf_buffer.lookup_transform(robot + "/map", robot + "/base_footprint" ,when,timeout=Duration(seconds=5.0))
+                # self.get_logger().info('Got {}'.format(repr(transform)))
+                curr_robot_pose_local_frame = Pose()
+                curr_robot_pose_local_frame.position.x = transform.transform.translation.x
+                curr_robot_pose_local_frame.position.y = transform.transform.translation.y
+                curr_robot_pose_local_frame.position.z = transform.transform.translation.z
+                curr_robot_pose_local_frame.orientation.x = transform.transform.rotation.x
+                curr_robot_pose_local_frame.orientation.y = transform.transform.rotation.y
+                curr_robot_pose_local_frame.orientation.z = transform.transform.rotation.z
+                curr_robot_pose_local_frame.orientation.w = transform.transform.rotation.w
+                t_1 = time.time()
+                self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(curr_robot_pose_local_frame.position.x, curr_robot_pose_local_frame.position.y, t_1 - t_0))
+                peer_robot_pose_dict[robot] = curr_robot_pose_local_frame  
+                
+            except LookupException as e:
+                self.get_logger().error('failed to get transform for robot {},{}'.format(robot, repr(e)))
+                
+        return peer_robot_pose_dict
+
+
 
     def getPeerRobotPosesInLocalFrame(self):
         service_client_dict = dict()
@@ -344,7 +444,7 @@ class PeerInterfaceNode(Node):
         return peer_robot_pose_dict
     #TODO: currently only supports translation between local map frame and the world frame
     def getPeerRobotPosesInWorldFrame(self):
-        peer_robot_pose_local_frame_dict = self.getPeerRobotPosesInLocalFrame()
+        peer_robot_pose_local_frame_dict = self.getPeerRobotPosesInLocalFrameUsingTf()
         peer_robot_pose_world_frame_dict = dict()
         for robot in self.peer_robot_registry_list_:
             if robot in self.init_offset_dict_:
@@ -365,13 +465,13 @@ class PeerInterfaceNode(Node):
         for robot in self.peer_robot_registry_list_:
             if robot == self.robot_name_:
                 peer_robot_pose_current_robot_frame_dict[robot] = Pose()
-                peer_robot_pose_current_robot_frame_dict[robot].position.x = 0
-                peer_robot_pose_current_robot_frame_dict[robot].position.y = 0
-                peer_robot_pose_current_robot_frame_dict[robot].position.z = 0
-                peer_robot_pose_current_robot_frame_dict[robot].orientation.x = 0
-                peer_robot_pose_current_robot_frame_dict[robot].orientation.y = 0
-                peer_robot_pose_current_robot_frame_dict[robot].orientation.z = 0
-                peer_robot_pose_current_robot_frame_dict[robot].orientation.w = 1
+                peer_robot_pose_current_robot_frame_dict[robot].position.x = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].position.y = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].position.z = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].orientation.x = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].orientation.y = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].orientation.z = 0.0
+                peer_robot_pose_current_robot_frame_dict[robot].orientation.w = 1.0
             else:
                 peer_robot_pose_current_robot_frame_dict[robot] = peer_robot_pose_world_frame_dict[robot]
                 peer_robot_pose_current_robot_frame_dict[robot].position.x -= peer_robot_pose_world_frame_dict[self.robot_name_].position.x
@@ -418,6 +518,37 @@ class PeerInterfaceNode(Node):
                     bfs_queue.append(neigh)    
         self.current_cluster_ = copy.deepcopy(cluster_list)
         return cluster_list 
+
+    def getClusterAndPoses(self):
+        cluster_pose_dict = dict()
+        peer_robot_pose_local_frame_dict = self.getPeerRobotPosesInCurrentRobotFrame()  
+        self.get_logger().info('(getCluster)after getPeerRobotPosesInWorldFrame(), size:{}'.format(len(peer_robot_pose_local_frame_dict))) 
+        bfs_queue = deque()
+        bfs_queue.append(self.robot_name_)
+        cluster_list = []
+        is_visited_map = dict()
+        is_visited_map[self.robot_name_] = True
+        while len(bfs_queue) > 0:
+            curr_robot = bfs_queue[0]
+            bfs_queue.popleft()
+            #TODO check whether index curr_robot exists
+            curr_pose = peer_robot_pose_local_frame_dict[curr_robot]
+            cluster_list.append(curr_robot)
+            for neigh in peer_robot_pose_local_frame_dict:
+                if neigh == curr_robot or neigh in is_visited_map:
+                    continue
+
+                neigh_pose = peer_robot_pose_local_frame_dict[neigh]
+                dist = self.distBetweenRobotPoses(curr_pose, neigh_pose)
+                if dist < self.cluster_range_limit_:
+                    is_visited_map[neigh] = True
+                    bfs_queue.append(neigh)    
+        self.current_cluster_ = copy.deepcopy(cluster_list)
+        for c in cluster_list:
+            cluster_pose_dict[c] = peer_robot_pose_local_frame_dict[c]
+        return cluster_list, cluster_pose_dict
+
+    
 
     def getPeerStatePid(self, peer_list=None):
         service_client_dict = dict()

@@ -55,8 +55,8 @@ class RobotMapNode(Node):
         self.publisher_.publish(msg)
 
     def singleMapCallback(self, msg):
-        if self.merged_map_update_ == False:
-            self.merged_map_msg_ = msg
+        # if self.merged_map_update_ == False:
+        self.merged_map_msg_ = msg
             
         pass
 
