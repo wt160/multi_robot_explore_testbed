@@ -10,9 +10,10 @@ import copy
 import yaml
 from std_msgs.msg import String, Header
 from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import Pose, PoseStamped, Point
 from ament_index_python.packages import get_package_share_directory
 from multi_robot_interfaces.msg import RobotRegistry
-
+from multi_robot_explore.map_frontier_merger import MapAndFrontierMerger
 
 
 #this node receives the mergedMap and republish it , use the newest single map to decorate the mergedMap 
@@ -26,6 +27,7 @@ class RobotMapNode(Node):
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.i = 0
         self.robot_name = robot_name
+        self.received_merged_map_yet_ = False
         # self.navigation_map_pub_ = self.create_publisher(OccupancyGrid, 'robot_map', 10)
         self.merged_map_sub_ = self.create_subscription(
             OccupancyGrid,
@@ -44,7 +46,7 @@ class RobotMapNode(Node):
         self.merged_map_update_ = False
         self.local_map_update_ = False
         self.merged_map_msg_ = OccupancyGrid()
-
+        self.map_merger = MapAndFrontierMerger(self.robot_name)
     def timer_callback(self):
         msg = OccupancyGrid()
         msg.header = Header()
@@ -56,15 +58,19 @@ class RobotMapNode(Node):
 
     def singleMapCallback(self, msg):
         # if self.merged_map_update_ == False:
-        self.merged_map_msg_ = msg
-            
-        pass
+        offset = Pose() 
+        offset.position.x = 0.0
+        offset.position.y = 0.0
+        if self.received_merged_map_yet_ == False:
+            self.merged_map_msg_ = msg
+        else:
+            self.merged_map_msg_ = self.map_merger.mapExpandFromFresh(self.merged_map_msg_, msg, offset)
 
 
     def mergedMapCallback(self, msg):
         self.merged_map_update_ = True
         self.merged_map_msg_ = msg
-
+        self.received_merged_map_yet_ = True
 
 
 def main(args=None):

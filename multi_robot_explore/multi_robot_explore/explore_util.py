@@ -7,7 +7,7 @@ import math
 from queue import PriorityQueue 
 from heapq import *
 from datetime import datetime
-
+from multi_robot_interfaces.msg import Frontier
 class ExploreUtil:
     def __init__(self):
         self.center_to_circle_map = {}
@@ -40,6 +40,46 @@ class ExploreUtil:
         self.HAVE_PEER_STATE = 10
         self.FINISH_TASK = 11
         self.get_free_neighbor_trial_limit = 200
+
+    def convertFrontierMsgToFrontiers(self, f_msg):
+        f_connect = []
+        for f in f_msg.frontier:
+            f_double = (f.point.x, f.point.y) 
+            f_connect.append(f_double)
+        return f_connect
+
+
+    def convertFrontiersToFrontierMsg(self, f_connect):
+        f_msg = Frontier()
+
+        for f_double in f_connect:
+            pt_stamped = PointStamped()
+            pt_stamped.point.x = f_double[0]
+            pt_stamped.point.y = f_double[1]
+            pt_stamped.point.z = 0.0
+            f_msg.frontier.append(pt_stamped)
+        return f_msg
+
+
+        f_connect = []
+        f_msg = Frontier()
+        
+        for f_cell in f_connect_cell:
+            f_double = (f_cell[0]*current_map.info.resolution + current_map.info.origin.position.x, f_cell[1]*current_map.info.resolution + current_map.info.origin.position.y)
+            f_connect.append(f_double)
+            pt_stamped = PointStamped()
+            pt_stamped.header = current_map.header
+            pt_stamped.point.x = f_double[0]
+            pt_stamped.point.y = f_double[1]
+            pt_stamped.point.z = 0.0
+            f_msg.frontier.append(pt_stamped)
+        temp_window_frontiers_msg_.append(f_msg)
+        temp_window_frontiers_.append(f_connect)
+        temp_window_frontiers_rank_.append(f_connect_cell[0][2])
+
+
+
+
 
     def removeCurrentRobotFootprint(self, map, footprint_pos, robot_radius_cell_size=4):
         resolution = map.info.resolution
@@ -133,6 +173,26 @@ class ExploreUtil:
         else:
             return False
 
+    def checkPtRegionFree(self, map, local_pt, region_cell_radius):
+        map_width = map.info.width
+        map_height = map.info.height
+        resolution = map.info.resolution
+        offset_x = map.info.origin.position.x
+        offset_y = map.info.origin.position.y
+        map_array = np.asarray(map.data, dtype=np.int8).reshape(map_height, map_width)
+        local_cell_x = (int)((local_pt[0] - offset_x) / resolution)
+        local_cell_y = (int)((local_pt[1] - offset_y) / resolution)
+        is_region_free = True
+        for x in range(local_cell_x - region_cell_radius, local_cell_x + region_cell_radius):
+            for y in range(local_cell_y - region_cell_radius, local_cell_y + region_cell_radius):
+                if x >= 0 and x < map_width and y >= 0 and y < map_height:
+                    curr_value = map_array[y][x]
+                    if curr_value == -1:
+                        is_region_free = False
+                        return False
+        return True
+
+
     def isCellFree(self, map, x_cell, y_cell, free_thres=0):
         idx = (int)(y_cell * map.info.width + x_cell)
         if idx > len(map.data)-1:
@@ -183,7 +243,44 @@ class ExploreUtil:
 
         return is_line_cross_obs
 
+    def checkDirectLineCrossFreeOrUnknown(self, start, end, map):
+        #prerequisites: 'start' and 'end' and 'map' both in the current robot frame
+        #start: (x, y) coordinates in map frame
+        # resolution = map.info.resolution
+        # offset_x = map.info.origin.position.x
+        # offset_y = map.info.origin.position.y
+        map_width = map.info.width
+        map_height = map.info.height
 
+        map_array = np.asarray(map.data, dtype=np.int8).reshape(map_height, map_width)
+        # start_x = (int)((start[0] - offset_x) / resolution)
+        # start_y = (int)((start[1] - offset_y) / resolution)
+
+        # end_x = (int)((end[0] - offset_x) / resolution)
+        # end_y = (int)((end[1] - offset_y) / resolution)
+
+        
+        # real_dist = math.sqrt((start[0] - end[0])*(start[0] - end[0]) + (start[1] - end[1])*(start[1] - end[1]))
+        cell_dist = math.sqrt((end[0] - start[0])*(end[0] - start[0]) + (end[1] - start[1])*(end[1] - start[1]))
+
+        increment_x = (end[0] - start[0]) / cell_dist
+        increment_y = (end[1] - start[1]) / cell_dist
+
+        curr_x = start[0]
+        curr_y = start[1]
+        is_line_cross_free_or_unknown = True
+        while curr_x < end[0] and curr_y < end[1]:
+            # self.get_logger().error('increment_x:{}, increment_y:{}'.format(increment_x, increment_y))
+            if curr_y + 1 < (map_array.shape)[0] and curr_x + 1 < (map_array.shape)[1]:
+                curr_value = map_array[(int)(curr_y)][(int)(curr_x)]
+                if curr_value > 80:
+                    is_line_cross_free_or_unknown = False
+                    break
+            curr_x = (curr_x + increment_x)
+            curr_y = (curr_y + increment_y)
+        
+
+        return is_line_cross_free_or_unknown
 
     def getShortestDistFromPtToObs(self, cell, map):
         # print("getShortestDistFrom {},{}".format(cell[0], cell[1]))
@@ -199,6 +296,8 @@ class ExploreUtil:
                     return dist
                 
         return self.dist_limit
+
+
 
 
     def getObservePtForFrontiers(self, f_connect, map, min_radius, max_radius):
@@ -217,7 +316,8 @@ class ExploreUtil:
         if observe_pt_cell == None:
             return None
         observe_pt = (observe_pt_cell[0]*map.info.resolution + map.info.origin.position.x, observe_pt_cell[1]*map.info.resolution + map.info.origin.position.y)
-        return observe_pt
+        frontier_pt = (max_cell[0]*map.info.resolution + map.info.origin.position.x, max_cell[1]*map.info.resolution + map.info.origin.position.y)
+        return observe_pt, frontier_pt
             
 
     def getDirectionalPose(self, curr_pose, goal_pose):
@@ -296,8 +396,37 @@ class ExploreUtil:
             else:
                 condition = False
         if condition == True:
+            print('getFreeNeighborRandom failed, return None')
             return None
         return neigh
+
+    #fraction_towards_target: 0.25
+    def getFreeNeighborTowardsTargetRandom(self, cell, target_cell, fraction_towards_target, map, min_radius, max_radius, free_thres=80):
+        r = 0.0
+        theta = 0.0
+        condition = True
+        neigh = (0, 0)
+        trial_num = 0
+        random.seed(datetime.now())
+        while condition and trial_num < self.get_free_neighbor_trial_limit:
+
+            r = (max_radius - min_radius) * random.random() + min_radius
+            theta = random.random() * 2 * 3.14159
+            neigh = ((int)(cell[0]*(1-fraction_towards_target) + target_cell[0]*fraction_towards_target), (int)(cell[1]*(1-fraction_towards_target) + target_cell[1]*fraction_towards_target))
+            # neigh = (cell[0] + (int)(r * math.cos(theta)) , cell[1] + (int)(r * math.sin(theta)))
+            neigh[0] = neigh[0] + (int)(r * math.cos(theta))
+            neigh[1] = neigh[1] + (int)(r * math.sin(theta))
+            print('getFreeTowardsTargetCell:{},{}'.format(neigh[0], neigh[1]))
+            trial_num = trial_num + 1
+            if self.checkDirectLineCrossFreeOrUnknown(cell, neigh, map) or self.isCellObs(map, neigh[0], neigh[1]) or self.isCellUnknown(map, neigh[0], neigh[1]):
+                condition = True
+            else:
+                condition = False
+        if condition == True:
+            print('getFreeNeighborTowardsTargetRandom failed, return None')
+            return None
+        return neigh
+
 
     def isFrontier(self, map, curr_cell, free_thres=0):       
         dw = map.info.width

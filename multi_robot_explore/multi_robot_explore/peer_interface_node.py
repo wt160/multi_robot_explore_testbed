@@ -167,11 +167,11 @@ class PeerInterfaceNode(Node):
             return
 
         self.get_logger().error('Publishing {}''s RobotTracks'.format(self.robot_name_))
-        self.get_logger().warn('******************************************')
-        self.get_logger().warn('******************************************')
-        self.get_logger().warn('******************************************')
-        self.get_logger().warn('******************************************')
-        self.get_logger().warn('******************************************')
+        # self.get_logger().warn('******************************************')
+        # self.get_logger().warn('******************************************')
+        # self.get_logger().warn('******************************************')
+        # self.get_logger().warn('******************************************')
+        # self.get_logger().warn('******************************************')
 
 
     def getCurrentRobotPoseCallback(self, request, response):

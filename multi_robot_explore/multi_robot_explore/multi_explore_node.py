@@ -896,7 +896,7 @@ class MultiExploreNode(Node):
             while find_valid_target == False:
                 closest_rank_index = self.window_frontiers_rank.index(min(self.window_frontiers_rank))
                 f_connect = self.window_frontiers[closest_rank_index]
-                target_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 7, 14)
+                target_pt, frontier_pt = self.e_util.getObservePtForFrontiers(f_connect, choose_target_map, 7, 14)
                 if target_pt == None:
                     del self.window_frontiers_rank[closest_rank_index]
                     del self.window_frontiers[closest_rank_index]
@@ -1235,30 +1235,25 @@ class MultiExploreNode(Node):
             navigation_time0 = time.time()
             self.getRobotCurrentPos()
             direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            navigation_time0 = time.time()
-            if direct_length_square > 5.0*5.0:
-                replan_time = 4.5
-            elif direct_length_square > 3.0*3.0:
-                replan_time = 3.5
-            elif direct_length_square > 1.0*1.0:
-                replan_time = 3.0
-            else:
-                replan_time = 2.2
+            
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
-                # self.get_logger().warn('navigating to target...')
-                
-                if time.time() - navigation_time0 > replan_time:
-                    self.get_logger().warn('start checking environment...')
 
-                    self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                # self.get_logger().error('start checking environment...')
+                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                    # return
                     
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
-                current_cell = ((int)((self.current_target_pos_.position.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_target_pos_.position.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
-                updated_cell = self.e_util.getFreeNeighborRandom(current_cell, self.inflated_local_map_, 7, 14)
+                self.get_logger().error('NAVIGATION_FAILED')
+
+                current_target_cell = ((int)((self.current_target_pos_.position.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_target_pos_.position.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
+                self.getRobotCurrentPos()
+                current_cell = ((int)((self.current_pos_[0] - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_pos_[1] - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
+                updated_cell = self.e_util.getFreeNeighborRandom(current_target_cell, self.inflated_local_map_, 30, 50)
                 if updated_cell == None:
+                    self.get_logger().warn('updated_cell is None, CHECK_ENVIRONMENT now!!!!!')
                     self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
                     return
                 updated_target_pt = (updated_cell[0]*self.inflated_local_map_.info.resolution + self.inflated_local_map_.info.origin.position.x, updated_cell[1]*self.inflated_local_map_.info.resolution + self.inflated_local_map_.info.origin.position.y)
@@ -1267,20 +1262,24 @@ class MultiExploreNode(Node):
 
 
                 if self.previous_state_ != self.e_util.GOING_TO_TARGET:
+                    self.get_logger().error('going_to_target_failed_times_ = 000000000000')
                     self.going_to_target_failed_times_ = 0
                 else:
                     self.going_to_target_failed_times_ += 1
+                    self.get_logger().error('going_to_target_failed_times_ = {}{}{}{}{}'.format(self.going_to_target_failed_times_,self.going_to_target_failed_times_,self.going_to_target_failed_times_,self.going_to_target_failed_times_,self.going_to_target_failed_times_))
+
                 self.previous_state_ = self.current_state_ 
-                if self.going_to_target_failed_times_ > 5:
-                    self.get_logger().warn('going_to_target_failed_times_ > 5')
-                    self.get_logger().warn('going_to_target_failed_times_ > 5')
-                    self.get_logger().warn('going_to_target_failed_times_ > 5')
-                    self.get_logger().warn('going_to_target_failed_times_ > 5')
-                    self.get_logger().warn('going_to_target_failed_times_ > 5')
+                if self.going_to_target_failed_times_ > 10:
+                    self.get_logger().warn('going_to_target_failed_times_ > 10')
+                    self.get_logger().warn('going_to_target_failed_times_ > 10')
+                    self.get_logger().warn('going_to_target_failed_times_ > 10')
+                    self.get_logger().warn('going_to_target_failed_times_ > 10')
+                    self.get_logger().warn('going_to_target_failed_times_ > 10')
                     self.last_failed_frontier_pt_ = self.current_target_pos_
                     self.going_to_target_failed_times_ = 0
                     self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
                 else:
+                    self.get_logger().error('retry same target again!!!!!!!!!!!!!!!!')
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
@@ -1310,6 +1309,7 @@ class MultiExploreNode(Node):
                     self.get_logger().error('finish local_frontiers, done for current robot')
                     self.setRobotState(self.e_util.FINISH_TASK)
                 else:
+                    self.previous_state_ = self.e_util.CHECK_ENVIRONMENT
                     self.setRobotState(self.e_util.GOING_TO_TARGET)
                 
                     # no window frontiers available, find target frontier from self.local_frontiers_msg_, considering distance from peer robot_tracks 
