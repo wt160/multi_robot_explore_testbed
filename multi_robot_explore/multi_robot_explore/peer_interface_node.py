@@ -166,7 +166,7 @@ class PeerInterfaceNode(Node):
             self.get_logger().error("timer_callback():getRobotCurrentPose() failed, something is wrong")
             return
 
-        self.get_logger().error('Publishing {}''s RobotTracks'.format(self.robot_name_))
+        # self.get_logger().error('Publishing {}''s RobotTracks'.format(self.robot_name_))
         # self.get_logger().warn('******************************************')
         # self.get_logger().warn('******************************************')
         # self.get_logger().warn('******************************************')
@@ -220,7 +220,7 @@ class PeerInterfaceNode(Node):
         peer_name = msg.robot_name.data
         # if peer_name == self.robot_name_:
         #     return 
-        self.get_logger().info('robot "%s" registered' % msg.robot_name.data)
+        # self.get_logger().info('robot "%s" registered' % msg.robot_name.data)
         seconds = msg.header.stamp.sec 
         nanoseconds = msg.header.stamp.nanosec 
         if peer_name in self.peer_robot_registry_list_:
@@ -290,7 +290,7 @@ class PeerInterfaceNode(Node):
             self.current_pose_world_frame_.position.y = self.current_pose_local_frame_.position.y + self.init_offset_dict_[self.robot_name_].position.y 
             self.current_pose_world_frame_.position.z = self.current_pose_local_frame_.position.z + self.init_offset_dict_[self.robot_name_].position.z 
             t_1 = time.time()
-            self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pose_local_frame_.position.x, self.current_pose_local_frame_.position.y, t_1 - t_0))
+            # self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pose_local_frame_.position.x, self.current_pose_local_frame_.position.y, t_1 - t_0))
             
             return True
         except LookupException as e:
@@ -392,7 +392,7 @@ class PeerInterfaceNode(Node):
                 curr_robot_pose_local_frame.orientation.z = transform.transform.rotation.z
                 curr_robot_pose_local_frame.orientation.w = transform.transform.rotation.w
                 t_1 = time.time()
-                self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(curr_robot_pose_local_frame.position.x, curr_robot_pose_local_frame.position.y, t_1 - t_0))
+                #self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(curr_robot_pose_local_frame.position.x, curr_robot_pose_local_frame.position.y, t_1 - t_0))
                 peer_robot_pose_dict[robot] = curr_robot_pose_local_frame  
                 
             except LookupException as e:
@@ -495,7 +495,7 @@ class PeerInterfaceNode(Node):
     # the leader. 
     def getCluster(self):
         peer_robot_pose_world_frame_dict = self.getPeerRobotPosesInWorldFrame()  
-        self.get_logger().info('(getCluster)after getPeerRobotPosesInWorldFrame(), size:{}'.format(len(peer_robot_pose_world_frame_dict))) 
+        #self.get_logger().info('(getCluster)after getPeerRobotPosesInWorldFrame(), size:{}'.format(len(peer_robot_pose_world_frame_dict))) 
         bfs_queue = deque()
         bfs_queue.append(self.robot_name_)
         cluster_list = []
@@ -522,7 +522,7 @@ class PeerInterfaceNode(Node):
     def getClusterAndPoses(self):
         cluster_pose_dict = dict()
         peer_robot_pose_local_frame_dict = self.getPeerRobotPosesInCurrentRobotFrame()  
-        self.get_logger().info('(getCluster)after getPeerRobotPosesInWorldFrame(), size:{}'.format(len(peer_robot_pose_local_frame_dict))) 
+        # self.get_logger().info('(getCluster)after getPeerRobotPosesInWorldFrame(), size:{}'.format(len(peer_robot_pose_local_frame_dict))) 
         bfs_queue = deque()
         bfs_queue.append(self.robot_name_)
         cluster_list = []

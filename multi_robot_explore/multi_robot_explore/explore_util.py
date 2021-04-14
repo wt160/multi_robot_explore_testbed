@@ -389,7 +389,7 @@ class ExploreUtil:
             neigh = (cell[0] + (int)(r * math.cos(theta)) , cell[1] + (int)(r * math.sin(theta)))
             # neigh[0] = cell[0] + (int)(r * math.cos(theta))
             # neigh[1] = cell[1] + (int)(r * math.sin(theta))
-            print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
+            # print('wfd init cell:{},{}'.format(neigh[0], neigh[1]))
             trial_num = trial_num + 1
             if self.checkDirectLineCrossObs(cell, neigh, map) or self.isCellObs(map, neigh[0], neigh[1]) or self.isCellUnknown(map, neigh[0], neigh[1]):
                 condition = True

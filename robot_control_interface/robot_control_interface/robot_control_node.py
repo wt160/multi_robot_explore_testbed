@@ -83,7 +83,7 @@ class RobotControlInterface(Node):
     def getPathLength(self):
         return self.get_path_result
 
-    def navigateToPose(self, target_pose):
+    def navigateToPoseFunction(self, target_pose):
         self.navigate_to_pose_state_ = self.e_util.NAVIGATION_MOVING
         target_pose_stamped = PoseStamped()
         target_pose_stamped.pose = target_pose

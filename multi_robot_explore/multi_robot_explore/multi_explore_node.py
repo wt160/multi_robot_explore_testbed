@@ -66,6 +66,7 @@ class MultiExploreNode(Node):
         self.inflated_local_map_ = None
         self.current_pos_ = (-1, -1)
         self.current_target_pos_ = Pose()
+        self.next_target_pos_ = Pose()
         
         #multi robot settings
         self.peer_map_ = dict()
@@ -136,7 +137,7 @@ class MultiExploreNode(Node):
         # rclpy.spin_once(self)
         
         self.e_util = ExploreUtil()
-        self.map_frontier_merger_ = MapAndFrontierMerger(self.robot_name_)
+        self.map_frontier_merger_ = MapAndFrontierMerger(self.robot_name_) 
         
         self.r_interface_ = RobotControlInterface(self.robot_name_)
         self.r_interface_.debugPrint()
@@ -200,13 +201,13 @@ class MultiExploreNode(Node):
 
 
     def getLocalMapAndFrontierCompressCallback(self, request, response):
-        self.get_logger().warn('{} getLocalMapAndFrontierCompressRequest'.format(self.robot_name_))
+        # self.get_logger().warn('{} getLocalMapAndFrontierCompressRequest'.format(self.robot_name_))
         if self.inflated_local_map_ == None:
             self.inflated_local_map_ = OccupancyGrid()
         local_map_bytes = pickle.dumps(self.inflated_local_map_)
-        self.get_logger().warn('before compressed map size:{}'.format(len(local_map_bytes)))
+        # self.get_logger().warn('before compressed map size:{}'.format(len(local_map_bytes)))
         compressed_local_map_bytes = lzma.compress(local_map_bytes)
-        self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
+        # self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
         # print(compressed_local_map_bytes)
         
         # response.map_compress = []
@@ -215,7 +216,7 @@ class MultiExploreNode(Node):
         response.map_compress = list(compressed_local_map_bytes)
         # response.map_compress = [b'a',b'c',b'r',b'w']
         response.local_frontier = self.local_frontiers_msg_
-        self.get_logger().warn('send map time: {}'.format(time.time()))
+        # self.get_logger().warn('send map time: {}'.format(time.time()))
         return response
 
     def getLocalMapAndFrontierCallback(self, request, response):
@@ -276,12 +277,12 @@ class MultiExploreNode(Node):
         when = rclpy.time.Time()
         try:
             # Suspends callback until transform becomes available
-            t_0 = time.time()
+            # t_0 = time.time()
             transform = self._tf_buffer.lookup_transform(self.world_frame_, self.local_fixed_frame_,when,timeout=Duration(seconds=5.0))
             # self.get_logger().info('Got {}'.format(repr(transform)))
             self.current_pos_ = (transform.transform.translation.x, transform.transform.translation.y)
-            t_1 = time.time()
-            self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
+            # t_1 = time.time()
+            # self.get_logger().info('(getRobotCurrentPos): robot pos:({},{}), used time:{}'.format(self.current_pos_[0], self.current_pos_[1], t_1 - t_0))
             
             return True
         except LookupException as e:
@@ -853,7 +854,7 @@ class MultiExploreNode(Node):
             #after reach the target, find new target
             self.get_logger().error('Enter GOINT_TO_TARGET')
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
-            self.r_interface_.navigateToPose(self.current_target_pos_)
+            self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
                 #self.get_logger().warn('navigating to target {},{}'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y))
                 pass
@@ -1040,7 +1041,7 @@ class MultiExploreNode(Node):
             #after reach the target, find new target
             self.get_logger().error('Enter GOINT_TO_TARGET')
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
-            self.r_interface_.navigateToPose(self.current_target_pos_)
+            self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
                 # self.get_logger().warn('navigating to target...')
                 pass
@@ -1231,15 +1232,24 @@ class MultiExploreNode(Node):
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
                 return
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
-            self.r_interface_.navigateToPose(self.current_target_pos_)
-            navigation_time0 = time.time()
-            self.getRobotCurrentPos()
-            direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            
+            self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
+            # self.getRobotCurrentPos()
+            # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+            is_thread_started = False
+            check_environment_thread = Thread(target=self.checkEnvironmentFunction)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
 
                 # self.get_logger().error('start checking environment...')
-                self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                self.getRobotCurrentPos()
+                current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+                # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
+                # current_direct_length_square = 10.0
+                if current_direct_length_square < 3.0*3.0:
+                    if is_thread_started == False:
+                        check_environment_thread.start()
+
+                        is_thread_started = True
                     # return
                     
                 pass
@@ -1276,11 +1286,18 @@ class MultiExploreNode(Node):
                     self.get_logger().warn('going_to_target_failed_times_ > 10')
                     self.get_logger().warn('going_to_target_failed_times_ > 10')
                     self.last_failed_frontier_pt_ = self.current_target_pos_
-                    self.going_to_target_failed_times_ = 0
+                    self.going_to_target_failed_times_ = 0 
                     self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
                 else:
                     self.get_logger().error('retry same target again!!!!!!!!!!!!!!!!')
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
+
+
+            if is_thread_started == True:
+                check_environment_thread.join()
+                self.current_target_pos_ = self.next_target_pos_
+                is_thread_started == False
+                self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
 
@@ -1317,9 +1334,52 @@ class MultiExploreNode(Node):
             self.r_interface_.rotateNCircles(1, 0.4)
             self.get_logger().error('finish local_frontiers, done for current robot')
 
-                
 
-    
+
+
+    def checkEnvironmentFunction(self):
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        self.get_logger().error('Enter CHECK_ENVIRONMENT_THREAD')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+
+            
+        #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
+        #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
+
+        self.window_frontiers, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
+        if self.window_frontiers == -1 or self.window_frontiers == -2:
+            self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
+            #self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+        else:   
+            #getCluster() might block, or return no cluster 
+            # cluster_list, cluster_pose_dict = self.peer_interface_.getClusterAndPoses()
+            peer_pose_dict = self.peer_interface_.getPeerRobotPosesInLocalFrameUsingTf()
+            # self.get_logger().warn('getCluster() result:')
+            # for cluster in cluster_list:
+                # self.get_logger().warn('cluster has {}'.format(cluster))
+            cluster_list = []
+            self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, peer_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
+            self.next_target_pos_ = self.group_coordinator_.hierarchicalCoordinationAssignment()
+            
+            
+            
+            # if self.current_target_pos_ == None:
+            #     self.get_logger().error('finish local_frontiers, done for current robot')
+            #     self.setRobotState(self.e_util.FINISH_TASK)
+            # else:
+            #     self.previous_state_ = self.e_util.CHECK_ENVIRONMENT
+            #     self.setRobotState(self.e_util.GOING_TO_TARGET)
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        self.get_logger().error('EXIT CHECK_ENVIRONMENT_THREAD, next target:{},{}'.format(self.next_target_pos_.position.x, self.next_target_pos_.position.y))
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+        # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
+
+
+
     def updateMultiCoordinatedGreedy(self):
         #state of current robot: GOING_TO_TARGET, WAITING_NEW_TARGET, REACH_TARGET, FINISH_TARGET_WINDOW_NOT_DONE, 
         if self.current_state_ == self.e_util.SYSTEM_INIT:
@@ -1344,7 +1404,7 @@ class MultiExploreNode(Node):
             #block during movement
             #after reach the target, find new target        
             self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
-            self.r_interface_.navigateToPose(self.current_target_pos_)
+            self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             self.setRobotState(self.e_util.CHECK_ENVIRONMENT) 
             # while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
             #     # self.get_logger().warn('navigating to target...')

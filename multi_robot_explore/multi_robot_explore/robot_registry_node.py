@@ -30,7 +30,7 @@ class RobotRegistryNode(Node):
         msg.header.frame_id = self.robot_name + '/base_footprint'
         msg.robot_name.data = self.robot_name
         self.publisher_.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg.robot_name.data)
+        # self.get_logger().info('Publishing: "%s"' % msg.robot_name.data)
         self.i += 1
 
     
