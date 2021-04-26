@@ -32,6 +32,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotState.msg"
   "msg/RobotStatePid.msg"
   "msg/RobotTracks.msg"
+  "msg/RobotTrack.msg"
+  "msg/CompressMap.msg"
   "srv/GetLocalMap.srv"
   "srv/GetLocalMapAndFrontier.srv"
   "srv/GetLocalMapAndFrontierCompress.srv"

@@ -1,0 +1,1 @@
+char[] map_compress
