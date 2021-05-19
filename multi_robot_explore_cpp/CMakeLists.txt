@@ -22,13 +22,17 @@ find_package(rclcpp_action REQUIRED)
 find_package(multi_robot_interfaces REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-
+find_package(tf2_ros REQUIRED)
+find_package(ZLIB REQUIRED)
 # find_package(multi_robot_explore REQUIRED)
 # find_package(robot_control_interface REQUIRED)
 
-add_executable(multi_explorer src/multi_explore_node.cpp src/explore_util.cpp src/robot_control_interface.cpp)
+add_executable(multi_explorer src/multi_explore_node.cpp src/explore_util.cpp src/robot_control_interface.cpp src/wfd_detector.cpp src/group_coordinator.cpp src/map_frontier_merger.cpp)
 ament_target_dependencies(multi_explorer
-rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs)
+rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB)
+
+# add_executable(test_cpp src/test.cpp)
+
 
 target_include_directories(multi_explorer PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -37,6 +41,11 @@ target_include_directories(multi_explorer PRIVATE
 install(TARGETS
   multi_explorer
   DESTINATION lib/${PROJECT_NAME})
+
+# install(TARGETS
+#   test_cpp
+#   DESTINATION lib/${PROJECT_NAME})
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

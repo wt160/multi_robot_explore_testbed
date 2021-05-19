@@ -22,7 +22,7 @@ class RobotRegistryNode(Node):
         self.i = 0
         self.robot_name = robot_name
 
-
+                                            
     def timer_callback(self):
         msg = RobotRegistry()
         msg.header = Header()
@@ -49,7 +49,7 @@ def main(args=None):
 
     if simulation_mode == True:
         #if in simulation mode, then robot_name is given by the launch file argument
-        robot_name = robot_name = sys.argv[1]
+        robot_name = sys.argv[1]
     else:
         #if not in simulation mode, this program runs in each robot, retrieve the robot_name from the param file
         robot_name = param_dict['robot_name']

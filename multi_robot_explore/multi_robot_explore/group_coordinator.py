@@ -317,7 +317,7 @@ class GroupCoordinator(Node):
         choose_last_failed_target_frontier = False
         if target_pt != None:
             
-            if self.last_failed_frontier_pt_ != None and (target_pt[0] - self.last_failed_frontier_pt_.position.x)*(target_pt[0] - self.last_failed_frontier_pt_.position.x) + (target_pt[1] - curr_robot_pose.position.y)*(target_pt[1] - curr_robot_pose.position.y) < 2.5*2.5:
+            if self.last_failed_frontier_pt_ != None and (target_pt[0] - self.last_failed_frontier_pt_.position.x)*(target_pt[0] - self.last_failed_frontier_pt_.position.x) + (target_pt[1] - self.last_failed_frontier_pt_.position.y)*(target_pt[1] - self.last_failed_frontier_pt_.position.y) < 2.5*2.5:
                 choose_last_failed_target_frontier = True 
             else:
                 if (target_pt[0] - curr_robot_pose.position.x)*(target_pt[0] - curr_robot_pose.position.x) + (target_pt[1] - curr_robot_pose.position.y)*(target_pt[1] - curr_robot_pose.position.y) < 2.5*2.5:

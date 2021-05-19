@@ -37,6 +37,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetLocalMap.srv"
   "srv/GetLocalMapAndFrontier.srv"
   "srv/GetLocalMapAndFrontierCompress.srv"
+  "srv/GetLocalMapAndFrontierCompressCpp.srv"
   "srv/GetPeerRobotPid.srv"
   "srv/GetPeerRobotPose.srv"
   "srv/GetPeerRobotState.srv"

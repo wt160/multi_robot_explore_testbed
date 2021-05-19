@@ -1259,8 +1259,8 @@ class MultiExploreNode(Node):
                 self.get_logger().error('NAVIGATION_FAILED')
 
                 current_target_cell = ((int)((self.current_target_pos_.position.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_target_pos_.position.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
-                self.getRobotCurrentPos()
-                current_cell = ((int)((self.current_pos_[0] - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_pos_[1] - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
+                # self.getRobotCurrentPos()
+                # current_cell = ((int)((self.current_pos_[0] - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution) ,  (int)((self.current_pos_[1] - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution))
                 updated_cell = self.e_util.getFreeNeighborRandom(current_target_cell, self.inflated_local_map_, 30, 50)
                 if updated_cell == None:
                     self.get_logger().warn('updated_cell is None, CHECK_ENVIRONMENT now!!!!!')

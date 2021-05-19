@@ -30,6 +30,10 @@ void RobotControlInterface::sendCmdVel(float v_x, float v_y, float v_w){
     cmd_vel_pub_->publish(vel_cmd);
 }
 
+void RobotControlInterface::stopAtPlace(){
+    sendCmdVel(0.0, 0.0, 0.0);
+}
+
 void RobotControlInterface::rotateNCircles(int n, float v_w){
     auto t_0 = high_resolution_clock::now();
     bool is_reached = false;
@@ -54,6 +58,7 @@ void RobotControlInterface::sendNavigationGoal(geometry_msgs::msg::Pose target_p
         return;
     }
 
+    this->navigate_to_pose_state_ = NAVIGATION_MOVING;
     auto goal_msg = NavigateToPose::Goal();
     auto goal_pose = geometry_msgs::msg::PoseStamped();
     goal_pose.pose = target_pose;

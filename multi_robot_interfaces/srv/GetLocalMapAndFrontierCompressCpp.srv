@@ -1,0 +1,6 @@
+std_msgs/String request_robot_name
+---
+std_msgs/Header map_header
+nav_msgs/MapMetaData map_info
+int8[] map_data_compress
+multi_robot_interfaces/Frontier[] local_frontier

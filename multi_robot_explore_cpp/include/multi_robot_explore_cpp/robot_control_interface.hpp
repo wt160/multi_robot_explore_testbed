@@ -26,6 +26,8 @@ class RobotControlInterface: public rclcpp::Node{
         RobotControlInterface(std::string robot_name);
         void sendCmdVel(float v_x, float v_y, float v_w);
         void rotateNCircles(int n, float v_w);
+        void stopAtPlace();
+
         void sendNavigationGoal(geometry_msgs::msg::Pose target_pose);
         void goalResponseCallback(GoalHandleNavigate::SharedPtr goal_handle);
         void feedbackCallback(GoalHandleNavigate::SharedPtr,const std::shared_ptr<const NavigateToPose::Feedback> feedback);
