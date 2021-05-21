@@ -44,17 +44,16 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
     geometry_msgs::msg::Pose current_robot_pose_world_frame = current_robot_pose_local_frame_;
     current_robot_pose_world_frame.position.x += init_offset_dict_[robot_name_][0];
     current_robot_pose_world_frame.position.y += init_offset_dict_[robot_name_][1];
-
+    std::cout<<"1"<<std::endl;
     vector<double> target_pt = {RETURN_NONE_VALUE, RETURN_NONE_VALUE};
     if(window_frontiers_rank_.size() == 0){
         RCLCPP_ERROR(this->get_logger(), "window_frontiers_rank_.size() == 0");
-        
+    
     }else{
         int closest_rank_index = 0;
         auto closest_rank_iterator = std::min_element(std::begin(window_frontiers_rank_), std::end(window_frontiers_rank_));
         closest_rank_index = std::distance(std::begin(window_frontiers_rank_), closest_rank_iterator);
         vector<pair<double, double>> f_connect = window_frontiers_[closest_rank_index];
-            RCLCPP_INFO(this->get_logger(), "after 1");
 
         pair<pair<double, double>, pair<double, double>> f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_connect, local_inflated_map_, 13, 18);
         if(f_target_pt_and_frontier_pt.first.first == RETURN_NONE_VALUE){
@@ -73,8 +72,13 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 chosen_last_failed_target_frontier = true;
             }
         } 
+        std::cout<<"2"<<std::endl;
+
         if(chosen_last_failed_target_frontier == false){
-            if((target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) < 3.0*3.0){
+            pair<int, int> target_pt_map_coordinates = make_pair((int)((target_pt[0] - local_inflated_map_->info.origin.position.x) / local_inflated_map_->info.resolution), (int)((target_pt[1] - local_inflated_map_->info.origin.position.y) / local_inflated_map_->info.resolution));
+            pair<int, int> current_pose_map_coordinates = make_pair((int)((current_robot_pose_local_frame_.position.x - local_inflated_map_->info.origin.position.x) / local_inflated_map_->info.resolution), (int)((current_robot_pose_local_frame_.position.y - local_inflated_map_->info.origin.position.y) / local_inflated_map_->info.resolution));
+
+            if((target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) < 3.0*3.0 && !e_util_.checkDirectLineCrossObs(target_pt_map_coordinates, current_pose_map_coordinates, local_inflated_map_)){
                 RCLCPP_WARN(this->get_logger(), "coorridor case, go to the closest frontier");
                 curr_target_pose_local_frame.position.x = target_pt[0];
                 curr_target_pose_local_frame.position.y = target_pt[1];
@@ -83,7 +87,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
             }
         }
     }
-            RCLCPP_INFO(this->get_logger(), "after 2");
+    std::cout<<"3"<<std::endl;
 
     if(target_pt[0]==RETURN_NONE_VALUE 
     || (target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) > 3.0*3.0 
@@ -120,6 +124,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 }
             }
         }
+        std::cout<<"4"<<std::endl;
 
         vector<pair<double, double>> window_f_pt_current_frame_list;
         vector<pair<double, double>> f_pt_world_frame_list;
@@ -139,6 +144,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 if(f_target_pt_and_frontier_pt.first.first == RETURN_NONE_VALUE || (last_failed_frontier_pt_.position.x != RETURN_NONE_VALUE && (last_failed_frontier_pt_.position.x - f_target_pt.first)*(last_failed_frontier_pt_.position.x - f_target_pt.first) + (last_failed_frontier_pt_.position.y - f_target_pt.second)*(last_failed_frontier_pt_.position.y - f_target_pt.second) < 2.5*2.5)){
                     continue;
                 }
+                std::cout<<"5"<<std::endl;
 
                 window_f_pt_current_frame_list.push_back(frontier_pt);
                 pair<double, double> f_target_pt_world_frame = make_pair(0.0, 0.0);
@@ -177,6 +183,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 furthest_f_pt_to_tracks = f_pt_world_frame_list[furthest_f_pt_to_tracks_index];
             }
         }
+        std::cout<<"6"<<std::endl;
         
         //if window_frontiers are all explored by peers(possibly, need to be verified) or no window_frontiers are left(current robot went into a dead ending)
         if(biggest_dist_to_closest_track < 8.0*8.0 || f_pt_world_frame_list.size() == 0){
