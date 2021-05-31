@@ -40,21 +40,23 @@ MultiExploreCppNode::MultiExploreCppNode(std::string robot_name, int total_robot
     this->declare_parameter<string>("robot_name","None");
 
 
-    this->declare_parameter<vector<double>>("tb0_init_offset",vector<double>({0.0, 0.0}));
-    this->declare_parameter<vector<double>>("tb1_init_offset",vector<double>({0.0, 0.0}));
+    this->declare_parameter<vector<double>>("tb0_init_offset",vector<double>({0.0, 3.0}));
+    this->declare_parameter<vector<double>>("tb1_init_offset",vector<double>({0.0, 1.0}));
     this->declare_parameter<vector<double>>("tb2_init_offset",vector<double>({0.0, 0.0}));
     this->declare_parameter<vector<double>>("tb3_init_offset",vector<double>({0.0, 0.0}));
-    this->declare_parameter<vector<std::string>>("peer_list", vector<std::string>({"tb0","tb1","tb2"}));
+    this->declare_parameter<vector<std::string>>("peer_list", vector<std::string>({"tb0","tb1"}));
 
     get_local_map_and_frontier_callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
 
-    get_local_map_and_frontier_service_ = this->create_service<multi_robot_interfaces::srv::GetLocalMapAndFrontierCompressCpp>("get_local_map_and_frontier", std::bind(&MultiExploreCppNode::getLocalMapAndFrontierCompressCppCallback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::QoS(10).get_rmw_qos_profile(), get_local_map_and_frontier_callback_group_);
+    get_local_map_and_frontier_service_ = this->create_service<multi_robot_interfaces::srv::GetLocalMapAndFrontierCompressCpp>(robot_name_ + "/get_local_map_and_frontier", std::bind(&MultiExploreCppNode::getLocalMapAndFrontierCompressCppCallback, this, std::placeholders::_1, std::placeholders::_2), rclcpp::QoS(10).get_rmw_qos_profile(), get_local_map_and_frontier_callback_group_);
     
 
 
     this->get_parameter("peer_list", peer_list_);
-
-    
+    std::cout<<"peer_list:"<<std::endl;
+    for(int i = 0; i < peer_list_.size(); i++){
+        std::cout<<peer_list_[i]<<std::endl;
+    }
     local_inflated_map_ = std::make_shared<nav_msgs::msg::OccupancyGrid>();
     // local_raw_map_ = std::make_shared<nav_msgs::msg::OccupancyGrid>();
 
@@ -72,6 +74,7 @@ void MultiExploreCppNode::getLocalMapAndFrontierCompressCppCallback(const std::s
     RCLCPP_WARN(this->get_logger(), "after compress map size:%d", compressed_map_data.size());
 
     response->local_frontier = local_frontiers_msg_;
+    response->original_length = local_inflated_map_->data.size();
 }
 
 
@@ -86,9 +89,10 @@ void MultiExploreCppNode::localMapCallback(const nav_msgs::msg::OccupancyGrid::S
     e_util_.inflateMap(local_raw_map_, local_inflated_map_, 4);
     map_resolution_ = local_inflated_map_->info.resolution;
     is_local_map_received_ = true;
-    auto inflated_map_msg = nav_msgs::msg::OccupancyGrid();
+    nav_msgs::msg::OccupancyGrid inflated_map_msg;
     inflated_map_msg.header = local_inflated_map_->header;
     inflated_map_msg.info = local_inflated_map_->info;
+    inflated_map_msg.data.reserve(local_inflated_map_->data.size());
     inflated_map_msg.data = local_inflated_map_->data;
     inflated_map_debug_pub_->publish(inflated_map_msg);
 }
@@ -102,6 +106,7 @@ void MultiExploreCppNode::initRobotUtil(){
         init_peer_pose_world_frame_[*peer] = peer_init_offset;
     }
     while(!is_local_map_received_);
+    group_coordinator_->setInitOffsetDict(init_peer_pose_world_frame_);
 }
 
 int MultiExploreCppNode::update(){
@@ -137,7 +142,8 @@ int MultiExploreCppNode::update(){
             RCLCPP_INFO(this->get_logger(), "after setPeerInfo");
             
             current_target_pose_ = group_coordinator_->hierarchicalCoordinationAssignment();
-            
+            std::cout<<"current_target_pose_:"<<current_target_pose_.position.x<<","<<current_target_pose_.position.y<<std::endl;
+
             if(current_target_pose_.position.x == SUCCESS_NONE_VALUE){
                 previous_state_ = CHECK_ENVIRONMENT;
                 RCLCPP_INFO(this->get_logger(), "SUCCESS_NONE_VALUE");
@@ -246,7 +252,7 @@ void MultiExploreCppNode::checkEnvironmentFunction(){
         //     previous_state_ = CHECK_ENVIRONMENT;
         //     current_state_ = GOING_TO_TARGET;
         // }
-
+        std::cout<<"next_target_pose:"<<next_target_pose_.position.x<<","<<next_target_pose_.position.y<<std::endl;
 
 
     }else{

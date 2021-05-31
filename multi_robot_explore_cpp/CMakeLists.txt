@@ -27,11 +27,20 @@ find_package(ZLIB REQUIRED)
 # find_package(multi_robot_explore REQUIRED)
 # find_package(robot_control_interface REQUIRED)
 
+
+
+
+IF(CMAKE_COMPILER_IS_GNUCC)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
+ENDIF(CMAKE_COMPILER_IS_GNUCC)
+
+
 add_executable(multi_explorer src/multi_explore_node.cpp src/explore_util.cpp src/robot_control_interface.cpp src/wfd_detector.cpp src/group_coordinator.cpp src/map_frontier_merger.cpp)
 ament_target_dependencies(multi_explorer
 rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB)
 
-# add_executable(test_cpp src/test.cpp)
+add_executable(test_cpp src/test.cpp)
 
 
 target_include_directories(multi_explorer PRIVATE
@@ -42,10 +51,23 @@ install(TARGETS
   multi_explorer
   DESTINATION lib/${PROJECT_NAME})
 
+install(TARGETS
+  test_cpp
+  DESTINATION lib/${PROJECT_NAME})
+
 # install(TARGETS
 #   test_cpp
 #   DESTINATION lib/${PROJECT_NAME})
 
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
+install(DIRECTORY
+  param
+  DESTINATION share/${PROJECT_NAME}/
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
