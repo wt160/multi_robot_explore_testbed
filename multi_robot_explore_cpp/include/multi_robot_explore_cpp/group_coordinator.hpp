@@ -15,6 +15,7 @@
 #include "nav2_msgs/action/compute_path_to_pose.hpp"
 #include "nav2_msgs/action/navigate_to_pose.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "visualization_msgs/msg/marker.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "multi_robot_interfaces/msg/robot_track.hpp"
 #include "multi_robot_explore_cpp/map_frontier_merger.hpp"
@@ -37,14 +38,20 @@ class GroupCoordinator: public rclcpp::Node{
         geometry_msgs::msg::Pose hierarchicalCoordinationAssignment();
         void robotTrackCallback(const multi_robot_interfaces::msg::RobotTrack::SharedPtr msg);
         int mergePeerFrontiers(vector<string> peer_list, nav_msgs::msg::OccupancyGrid::SharedPtr& merged_map, vector<Frontier>& merged_frontiers);
+        bool getRobotCurrentPose(geometry_msgs::msg::Pose & local_pose, geometry_msgs::msg::Pose & global_pose);
+        void timer_callback();
+        void setInitOffsetDict(map<std::string, vector<double>>& init_offset_dict);
+        void publishRobotTargetMarker(geometry_msgs::msg::Point start, geometry_msgs::msg::Point end);
 
         int navigate_to_pose_state_ = 0;
 
     private:
-        rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+        rclcpp::Publisher<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_track_pub_;
         rclcpp_action::Client<NavigateToPose>::SharedPtr navigate_client_ptr_;
         rclcpp::Subscription<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_tracks_sub_;
-        
+        rclcpp::TimerBase::SharedPtr timer_;
+        rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr robot_target_pub_;
+
         int total_robot_num_;
         std::string robot_name_;
         int current_state_;
@@ -67,11 +74,16 @@ class GroupCoordinator: public rclcpp::Node{
         vector<Frontier> local_frontiers_msg_;
         nav_msgs::msg::OccupancyGrid::SharedPtr local_inflated_map_; 
         map<std::string, vector<double>> init_offset_dict_;
+        bool is_init_offset_dict_setup_;
         geometry_msgs::msg::Pose last_failed_frontier_pt_;
         geometry_msgs::msg::Pose current_robot_pose_local_frame_;
 
         map<string, vector<geometry_msgs::msg::Point>> peer_tracks_dict_;
         map<string, nav_msgs::msg::OccupancyGrid> peer_map_dict_;
         map<string, vector<Frontier>> peer_local_frontiers_dict_;
+
+        std::unique_ptr<tf2_ros::Buffer> buffer_;
+        std::shared_ptr<tf2_ros::TransformListener> tfl_;
+
 };
 #endif

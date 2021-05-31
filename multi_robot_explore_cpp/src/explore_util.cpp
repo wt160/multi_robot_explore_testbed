@@ -21,20 +21,28 @@ ExploreUtil::ExploreUtil(){
 }
 
 bool ExploreUtil::isCellObs(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell){
-    int idx = y_cell * map->info.width + x_cell;
-    if(idx > (map->data).size())
+    int idx = (int)(y_cell * map->info.width + x_cell);
+    if(idx >= map->data.size() || idx < 0)
         return true;
-    int8_t v = map->data[idx];
-    if((int)v > 80){
+    
+    int8_t v = 0;
+    try{ 
+    v = map->data[idx];
+    
+    // std::cout<<"iCO:"<<(int)v<<","<<idx;
+    if(v > 80){
         return true;
     }else{
         return false;
+    }
+    }catch(...){
+        std::cerr<<"idx:"<<idx<<", map->data size:"<<map->data.size()<<std::endl;
     }
 }
 
 bool ExploreUtil::isCellObsOrUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell){
     int idx = y_cell * map->info.width + x_cell;
-    if(idx > (map->data).size())
+    if(idx >= (map->data).size() || idx < 0)
         return true;
     int8_t v = map->data[idx];
     if((int)v == -1 || (int)v > 80){
@@ -46,7 +54,7 @@ bool ExploreUtil::isCellObsOrUnknown(const nav_msgs::msg::OccupancyGrid::ConstPt
 
 bool ExploreUtil::isCellUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr &map, int x_cell, int y_cell){
     int idx = y_cell * map->info.width + x_cell;
-    if(idx > (map->data).size())
+    if(idx >= (map->data).size() || idx < 0)
         return true;
     int8_t v = map->data[idx];
     if((int)v == -1){
@@ -59,7 +67,7 @@ bool ExploreUtil::isCellUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr &ma
 bool ExploreUtil::isCellFree(const nav_msgs::msg::OccupancyGrid::ConstPtr &map, int x_cell, int y_cell, int free_limit){
     int idx = y_cell * map->info.width + x_cell;
 
-    if(idx > (map->data).size())
+    if(idx >= (map->data).size() || idx < 0)
         return false;
     
     int8_t v = map->data[idx];
@@ -88,6 +96,8 @@ std::pair<int, int> ExploreUtil::getFreeNeighborRandom(std::pair<int, int> cell,
         neigh.second = cell.second + (int)(r * sin(theta));
 
         trial_num ++;
+        std::cout<<"cell:"<<cell.first<<","<<cell.second<<std::endl;
+        std::cout<<"neigh:"<<neigh.first<<","<<neigh.second<<std::endl;
         if(checkDirectLineCrossObs(cell, neigh, map) || isCellObs(map, neigh.first, neigh.second) || isCellUnknown(map, neigh.first, neigh.second)){
             condition = true;
         }else{
@@ -111,14 +121,16 @@ bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<i
 
 
     bool is_line_cross_obs = false;
-    while(curr_x < end.first && curr_y < end.second){
-        if(isCellObsOrUnknown(map, (int)curr_x, (int)curr_y)){
+    while(std::abs(curr_x - end.first) > 1 || std::abs(curr_y - end.second) > 1){
+        if(isCellObs(map, (int)curr_x, (int)curr_y)){
             is_line_cross_obs = true;
+            std::cout<<"line cross obs"<<std::endl;
             break;
         }
         curr_x += increment_x;
         curr_y += increment_y;
     }
+
     return is_line_cross_obs;
 
 }
@@ -130,16 +142,16 @@ bool ExploreUtil::isFrontier(const nav_msgs::msg::OccupancyGrid::ConstPtr & map,
     //map value == 0 : unknown cell
     int size = map->data.size();
 
-    if(x + y*dw < size && map->data[x + y*dw] != -1) return false;
+    if(x + y*dw < size && x + y*dw >= 0 && map->data[x + y*dw] != -1) return false;
 
-    if(x != 0 && x - 1 + y*dw < size && map->data[x - 1 + y*dw] <55 && map->data[x - 1 + y*dw] >= 0) return true;
-    if(y != 0 && x + (y-1)*dw < size && map->data[x  + (y-1)*dw] < 55 && map->data[x  + (y-1)*dw] >= 0) return true;
-    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && map->data[x - 1 + (y-1)*dw] <55 && map->data[x - 1 + (y-1)*dw] >= 0) return true;
-    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && map->data[x + 1 + (y-1)*dw] < 55 && map->data[x + 1 + (y-1)*dw] >= 0) return true;
-    if(x != dw - 1 && x + 1 + y*dw < size &&  map->data[x + 1 + (y)*dw] < 55 && map->data[x + 1 + (y)*dw] >= 0)  return true;
-    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && map->data[x - 1 + (y+1)*dw] < 55 && map->data[x - 1 + (y+1)*dw] >= 0) return true;
-    if( y != dh - 1 && x + (y+1)*dw < size && map->data[x  + (y+1)*dw] < 55 && map->data[x  + (y+1)*dw] >= 0) return true;
-    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size &&  map->data[x + 1 + (y+1)*dw] < 55 && map->data[x + 1 + (y+1)*dw] >= 0)  return true;
+    if(x != 0 && x - 1 + y*dw < size && x - 1 + y*dw >= 0 && map->data[x - 1 + y*dw] <55 && map->data[x - 1 + y*dw] >= 0) return true;
+    if(y != 0 && x + (y-1)*dw < size && x + (y-1)*dw >= 0 && map->data[x  + (y-1)*dw] < 55 && map->data[x  + (y-1)*dw] >= 0) return true;
+    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && x -1 + (y-1)*dw >= 0 && map->data[x - 1 + (y-1)*dw] <55 && map->data[x - 1 + (y-1)*dw] >= 0) return true;
+    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && x + 1 + (y-1)*dw >= 0 && map->data[x + 1 + (y-1)*dw] < 55 && map->data[x + 1 + (y-1)*dw] >= 0) return true;
+    if(x != dw - 1 && x + 1 + y*dw < size && x + 1 + y*dw >= 0 && map->data[x + 1 + (y)*dw] < 55 && map->data[x + 1 + (y)*dw] >= 0)  return true;
+    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && x-1 + (y+1)*dw >= 0 &&  map->data[x - 1 + (y+1)*dw] < 55 && map->data[x - 1 + (y+1)*dw] >= 0) return true;
+    if( y != dh - 1 && x + (y+1)*dw < size && x + (y+1)*dw >= 0 && map->data[x  + (y+1)*dw] < 55 && map->data[x  + (y+1)*dw] >= 0) return true;
+    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size && x + 1 + (y+1)*dw >= 0 &&  map->data[x + 1 + (y+1)*dw] < 55 && map->data[x + 1 + (y+1)*dw] >= 0)  return true;
     
     return false;
 }
@@ -191,7 +203,8 @@ void ExploreUtil::setValueForRectInMap(nav_msgs::msg::OccupancyGrid::SharedPtr &
     for(int x = min_x; x <= max_x; x++){
         for(int y = min_y; y <= max_y; y++){
             int idx = y * width + x;
-            map->data[idx] = 100;
+            if(idx >= 0 && idx < map->data.size())
+                map->data[idx] = 100;
         }
     }
     return;
@@ -352,9 +365,9 @@ int ExploreUtil::compress_vector(std::vector<int8_t> source, std::vector<int8_t>
     return return_value;
 }
 
-int ExploreUtil::decompress_vector(std::vector<int8_t> source, std::vector<int8_t> &destination) {
+int ExploreUtil::decompress_vector(std::vector<int8_t> source, std::vector<int8_t> &destination, uLongf destination_length) {
     unsigned long source_length = source.size();
-    uLongf destination_length = compressBound(source_length);
+    // uLongf destination_length = compressBound(source_length);
 
     int8_t *destination_data = (int8_t *) malloc(destination_length);
     if (destination_data == nullptr) {

@@ -34,6 +34,7 @@
 #include <zlib.h>
 #include <zconf.h>
 #include <iomanip>
+#include <exception>
 #define NAVIGATION_DONE 10
 #define NAVIGATION_FAILED 11
 #define NAVIGATION_MOVING 12
@@ -79,7 +80,7 @@ class ExploreUtil{
         vector<pair<double, double>> convertFrontierMsgToFrontiers(Frontier f_msg);
         void add_buffer_to_vector(std::vector<int8_t> &vector, const int8_t *buffer, uLongf length);
         int compress_vector(std::vector<int8_t> source, std::vector<int8_t> &destination);
-        int decompress_vector(std::vector<int8_t> source, std::vector<int8_t> &destination);
+        int decompress_vector(std::vector<int8_t> source, std::vector<int8_t> &destination, uLongf destination_length);
         void add_string_to_vector(std::vector<int8_t> &uncompressed_data,
                           const int8_t *my_string);
         void print_bytes(std::ostream &stream, const int8_t *data, size_t data_length, bool format = true);

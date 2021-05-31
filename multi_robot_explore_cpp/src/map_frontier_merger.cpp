@@ -14,6 +14,10 @@ TransformedGrid::TransformedGrid(nav_msgs::msg::OccupancyGrid &grid,
           cyaw{std::cos(init_yaw)},
           syaw{std::sin(init_yaw)}
 {
+    std::cout<<"width:"<<grid_ptr->info.width<<std::endl;
+    std::cout<<"height:"<<grid_ptr->info.height<<std::endl;
+    std::cout<<"data length:"<<grid_ptr->data.size()<<std::endl;
+
 }
 
 int8_t TransformedGrid::Val(double x, double y)
@@ -28,13 +32,17 @@ int8_t TransformedGrid::Val(double x, double y)
     // 计算该坐标点所在的行列
     int col = (int)(local_x / this->grid_ptr->info.resolution);
     int row = (int)(local_y / this->grid_ptr->info.resolution);
-
+    // std::cout<<"Val:"<<x<<","<<y<<":"<<col<<","<<row<<std::endl;
     // 判断该坐标是否在地图内
     if (col < 0 || col >= this->grid_ptr->info.width)
         return -1;
     else if (row < 0 || row >= this->grid_ptr->info.height)
         return -1;
 
+    if(col + row * this->grid_ptr->info.width < 0 || col + row * this->grid_ptr->info.width >= this->grid_ptr->data.size()){ 
+        std::cout<<"segment fault access mempry problem"<<std::endl;
+        return -1;
+    }
     return this->grid_ptr->data[col + row * this->grid_ptr->info.width];
 }
 
@@ -110,6 +118,7 @@ nav_msgs::msg::OccupancyGrid::SharedPtr MapFrontierMerger::mergeGrids(){
     // 初始化合成地图的尺寸、坐标和分辨率
     int rows = (get<1>(border) - get<3>(border)) / resolution_;
     int cols = (get<2>(border) - get<0>(border)) / resolution_;
+    std::cout<<"mergeGrids: rows:"<<rows<<", cols:"<<cols<<std::endl;
     grid_ptr->info.resolution = resolution_;
     grid_ptr->info.width = cols;
     grid_ptr->info.height = rows;

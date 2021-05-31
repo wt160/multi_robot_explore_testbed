@@ -7,7 +7,7 @@ GroupCoordinator::GroupCoordinator(std::string robot_name)
 
 
     robot_name_ = robot_name;
-    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(robot_name_ + "/cmd_vel",10);
+    robot_track_pub_ = this->create_publisher<multi_robot_interfaces::msg::RobotTrack>("robot_track",10);
     navigate_client_ptr_ = rclcpp_action::create_client<NavigateToPose>(this, robot_name_ + "/navigate_to_pose");
 
 
@@ -17,11 +17,78 @@ GroupCoordinator::GroupCoordinator(std::string robot_name)
     last_failed_frontier_pt_.position.y = RETURN_NONE_VALUE;
 
     e_util_ = ExploreUtil();
+    rclcpp::Clock::SharedPtr clock = this->get_clock();
+    
+    // std::make_shared<rclcpp::Clock>(RCL_ROS_TIME);
+    buffer_ = std::make_unique<tf2_ros::Buffer>(clock);
+    tfl_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
+    timer_ = create_wall_timer(1000ms, std::bind(&GroupCoordinator::timer_callback, this));
+
+    robot_map_frame_ = robot_name_ + "/map";
+    robot_base_frame_ = robot_name_ + "/base_link";
+    is_init_offset_dict_setup_ = false;
 }
 
+bool GroupCoordinator::getRobotCurrentPose(geometry_msgs::msg::Pose & local_pose, geometry_msgs::msg::Pose & global_pose){
+    // tf::StampedTransform transform;
+    geometry_msgs::msg::Pose current_pose;
+    geometry_msgs::msg::TransformStamped transform;
+    std::string warning_msg;
+    rclcpp::Rate rate(2);
+    while(!buffer_->canTransform(robot_map_frame_, robot_base_frame_, tf2::TimePoint(), &warning_msg)){
+        RCLCPP_INFO(
+      this->get_logger(), "Waiting for transform %s ->  %s: %s",
+      robot_map_frame_.c_str(), robot_base_frame_.c_str(), warning_msg.c_str());
+        rate.sleep();
+    }
 
+    try
+    {
+        transform = buffer_->lookupTransform(robot_map_frame_, robot_base_frame_, tf2::TimePoint());
 
+    }
+    catch (tf2::TransformException & ex)
+    {
 
+        RCLCPP_ERROR(this->get_logger(), "TF %s - %s: %s", robot_map_frame_.c_str(), robot_base_frame_.c_str(), ex.what());
+        return false;
+    }
+    local_pose.position.x = transform.transform.translation.x;
+    local_pose.position.y = transform.transform.translation.y;
+    local_pose.position.z = transform.transform.translation.z;
+    local_pose.orientation.x = transform.transform.rotation.x;
+    local_pose.orientation.y = transform.transform.rotation.y;
+    local_pose.orientation.z = transform.transform.rotation.z;
+    local_pose.orientation.w = transform.transform.rotation.w;
+    global_pose.position.x = transform.transform.translation.x + init_offset_dict_[robot_name_][0];
+    global_pose.position.y = transform.transform.translation.y + init_offset_dict_[robot_name_][0];
+    global_pose.position.z = transform.transform.translation.z;
+    global_pose.orientation.x = transform.transform.rotation.x;
+    global_pose.orientation.y = transform.transform.rotation.y;
+    global_pose.orientation.z = transform.transform.rotation.z;
+    global_pose.orientation.w = transform.transform.rotation.w;
+    return true;
+}
+
+void GroupCoordinator::timer_callback(){
+    if(is_init_offset_dict_setup_ == false) return;
+    geometry_msgs::msg::Pose local_pose;
+    geometry_msgs::msg::Pose global_pose;
+    getRobotCurrentPose(local_pose, global_pose);
+    auto msg = multi_robot_interfaces::msg::RobotTrack();
+    geometry_msgs::msg::Point track;
+    track.x = global_pose.position.x;
+    track.y = global_pose.position.y;
+
+    msg.robot_name.data = robot_name_;
+    msg.robot_track = track;
+    robot_track_pub_->publish(msg);
+}
+
+void GroupCoordinator::setInitOffsetDict(map<std::string, vector<double>>& init_offset_dict){
+    init_offset_dict_ = init_offset_dict;
+    is_init_offset_dict_setup_ = true;
+}
 
 void GroupCoordinator::setPeerInfo(vector<string> peer_list, geometry_msgs::msg::Pose current_robot_pose_local_frame, vector<vector<pair<double, double>>>& window_frontiers, vector<int>& window_frontiers_rank, vector<vector<pair<double, double>>>& local_frontiers, vector<Frontier>& local_frontiers_msg, nav_msgs::msg::OccupancyGrid::SharedPtr& local_inflated_map, map<std::string, vector<double>>& init_offset_dict, geometry_msgs::msg::Pose last_failed_frontier_pt){
 
@@ -37,6 +104,48 @@ void GroupCoordinator::setPeerInfo(vector<string> peer_list, geometry_msgs::msg:
     last_failed_frontier_pt_ = last_failed_frontier_pt;
 }
 
+void GroupCoordinator::publishRobotTargetMarker(geometry_msgs::msg::Point start, geometry_msgs::msg::Point end){
+    visualization_msgs::msg::Marker m;
+    // m.header.stamp = 
+    m.header.frame_id = "world";
+    m.type = 0;
+    m.action = 0;
+    m.scale.x = 0.5;
+    m.scale.y = 0.5;
+    m.scale.z = 0.5;
+    if(robot_name_ == "tb0"){ 
+        m.id = 0;
+        m.color.r = 0.0;
+        m.color.g = 1.0;
+        m.color.b = 0.0;
+        m.color.a = 1.0;
+    }else if(robot_name_ == "tb1"){ 
+        m.id = 1;
+        m.color.r = 1.0;
+        m.color.g = 0.0;
+        m.color.b = 0.0;
+        m.color.a = 1.0;
+    }else if(robot_name_ == "tb2"){ 
+        m.id = 2;
+        m.color.r = 0.0;
+        m.color.g = 1.0;
+        m.color.b = 1.0;
+        m.color.a = 1.0;
+    }else if(robot_name_ == "tb3"){ 
+        m.id = 3;
+        m.color.r = 0.0;
+        m.color.g = 0.0;
+        m.color.b = 1.0;
+        m.color.a = 1.0;
+    }
+
+    m.points.push_back(start);
+    m.points.push_back(end);
+
+    robot_target_pub_->publish(m);
+}
+
+
 geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
     geometry_msgs::msg::Pose curr_target_pose_local_frame;
     auto compute_start_time = high_resolution_clock::now();
@@ -44,24 +153,29 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
     geometry_msgs::msg::Pose current_robot_pose_world_frame = current_robot_pose_local_frame_;
     current_robot_pose_world_frame.position.x += init_offset_dict_[robot_name_][0];
     current_robot_pose_world_frame.position.y += init_offset_dict_[robot_name_][1];
-    std::cout<<"1"<<std::endl;
+    // std::cout<<"1"<<std::endl;
     vector<double> target_pt = {RETURN_NONE_VALUE, RETURN_NONE_VALUE};
     if(window_frontiers_rank_.size() == 0){
         RCLCPP_ERROR(this->get_logger(), "window_frontiers_rank_.size() == 0");
     
     }else{
-        int closest_rank_index = 0;
-        auto closest_rank_iterator = std::min_element(std::begin(window_frontiers_rank_), std::end(window_frontiers_rank_));
-        closest_rank_index = std::distance(std::begin(window_frontiers_rank_), closest_rank_iterator);
-        vector<pair<double, double>> f_connect = window_frontiers_[closest_rank_index];
+        bool get_valid_closest_target_pt = false;
+        while(!get_valid_closest_target_pt){ 
+            int closest_rank_index = 0;
+            auto closest_rank_iterator = std::min_element(std::begin(window_frontiers_rank_), std::end(window_frontiers_rank_));
+            closest_rank_index = std::distance(std::begin(window_frontiers_rank_), closest_rank_iterator);
+            vector<pair<double, double>> f_connect = window_frontiers_[closest_rank_index];
 
-        pair<pair<double, double>, pair<double, double>> f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_connect, local_inflated_map_, 13, 18);
-        if(f_target_pt_and_frontier_pt.first.first == RETURN_NONE_VALUE){
-            target_pt[0] = RETURN_NONE_VALUE;
-            target_pt[1] = RETURN_NONE_VALUE;
-        }else{
-            target_pt[0] = f_target_pt_and_frontier_pt.first.first;
-            target_pt[1] = f_target_pt_and_frontier_pt.first.second;
+            pair<pair<double, double>, pair<double, double>> f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_connect, local_inflated_map_, 18, 28);
+            if(f_target_pt_and_frontier_pt.first.first == RETURN_NONE_VALUE){
+                target_pt[0] = RETURN_NONE_VALUE;
+                target_pt[1] = RETURN_NONE_VALUE;
+                window_frontiers_rank_[closest_rank_index] = 100000000;
+            }else{
+                get_valid_closest_target_pt = true;
+                target_pt[0] = f_target_pt_and_frontier_pt.first.first;
+                target_pt[1] = f_target_pt_and_frontier_pt.first.second;
+            }
         }
     }
     bool chosen_last_failed_target_frontier = false;
@@ -78,7 +192,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
             pair<int, int> target_pt_map_coordinates = make_pair((int)((target_pt[0] - local_inflated_map_->info.origin.position.x) / local_inflated_map_->info.resolution), (int)((target_pt[1] - local_inflated_map_->info.origin.position.y) / local_inflated_map_->info.resolution));
             pair<int, int> current_pose_map_coordinates = make_pair((int)((current_robot_pose_local_frame_.position.x - local_inflated_map_->info.origin.position.x) / local_inflated_map_->info.resolution), (int)((current_robot_pose_local_frame_.position.y - local_inflated_map_->info.origin.position.y) / local_inflated_map_->info.resolution));
 
-            if((target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) < 3.0*3.0 && !e_util_.checkDirectLineCrossObs(target_pt_map_coordinates, current_pose_map_coordinates, local_inflated_map_)){
+            if((target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) < 1.0*1.0){
                 RCLCPP_WARN(this->get_logger(), "coorridor case, go to the closest frontier");
                 curr_target_pose_local_frame.position.x = target_pt[0];
                 curr_target_pose_local_frame.position.y = target_pt[1];
@@ -90,18 +204,19 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
     std::cout<<"3"<<std::endl;
 
     if(target_pt[0]==RETURN_NONE_VALUE 
-    || (target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) > 3.0*3.0 
+    || (target_pt[0] - current_robot_pose_local_frame_.position.x)*(target_pt[0] - current_robot_pose_local_frame_.position.x) + (target_pt[1] - current_robot_pose_local_frame_.position.y)*(target_pt[1] - current_robot_pose_local_frame_.position.y) > 1.0*1.0 
     || chosen_last_failed_target_frontier){
         vector<geometry_msgs::msg::Point> peer_pose_world_frame_list;
         vector<geometry_msgs::msg::Point> track_list;
         if(peer_tracks_dict_.size() == 0){
             //in case something is wrong, and didn't get robot_track from messages
-            RCLCPP_WARN(this->get_logger(), "no peer tracks received!!!!");
             geometry_msgs::msg::Pose none_pose;
             none_pose.position.x = FAIL_NONE_VALUE;
             none_pose.position.y = FAIL_NONE_VALUE;
             curr_target_pose_local_frame.position.x = target_pt[0];
             curr_target_pose_local_frame.position.y = target_pt[1];
+
+            RCLCPP_WARN(this->get_logger(), "no peer tracks received!!!!");
             return curr_target_pose_local_frame;
             // return none_pose;
             // for(auto peer_ite = peer_pose_in_peer_frame_dict_.begin(); peer_ite != peer_pose_in_peer_frame_dict_.end(); peer_ite ++){
@@ -120,6 +235,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 if(peer_ite->first != robot_name_){
                     for(auto t = peer_ite->second.begin(); t != peer_ite->second.end(); t++){
                         track_list.push_back(*t);
+                        std::cout<<"track_list add:"<<t->x<<","<<t->y<<std::endl;       
                     }
                 }
             }
@@ -133,7 +249,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
         if(window_frontiers_.size() > 0){
             for(vector<pair<double, double>> w_f: window_frontiers_){
 
-                pair<pair<double, double>, pair<double, double>> f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(w_f, local_inflated_map_, 13, 18);
+                pair<pair<double, double>, pair<double, double>> f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(w_f, local_inflated_map_, 18, 28);
                 pair<double, double> f_target_pt;
                 pair<double, double> frontier_pt;
                 if(f_target_pt_and_frontier_pt.first.first != RETURN_NONE_VALUE){
@@ -159,7 +275,9 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
 
             double furthest_dist = -1.0;
             vector<double> small_dist_to_tracks_list;
+            small_dist_to_tracks_list.reserve(f_pt_world_frame_list.size());
             if(f_pt_world_frame_list.size() != 0){
+                std::cout<<"window_f_pt_world_frame_list size:"<<f_pt_world_frame_list.size()<<std::endl;
                 for(int f_index = 0; f_index < f_pt_world_frame_list.size(); f_index ++){
                     double smallest_dist = 1000000000.0;
                     pair<double, double> f_pt = f_pt_world_frame_list[f_index];
@@ -203,7 +321,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
             }else{
                 has_merged_map_to_verify = false;
             }
-
+            std::cout<<"7"<<std::endl;
             if(has_merged_map_to_verify){
                 if(merged_frontiers.size() == 0){
                     RCLCPP_WARN(this->get_logger(), "no merged_frontiers left!!!!!!done");
@@ -405,11 +523,11 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
         }
         pair<double, double> furthest_f_pt_local_frame = make_pair(furthest_f_pt_to_tracks.first - init_offset_dict_[robot_name_][0], furthest_f_pt_to_tracks.second - init_offset_dict_[robot_name_][1]);
         auto now = high_resolution_clock::now();
-        int compute_secs = (int)duration_cast<seconds>(now - compute_start_time).count();
+        double compute_secs = duration_cast<seconds>(now - compute_start_time).count();
+        RCLCPP_ERROR(this->get_logger(), "final compute time: %f seconds", compute_secs);
         curr_target_pose_local_frame.position.x = furthest_f_pt_local_frame.first;
         curr_target_pose_local_frame.position.y = furthest_f_pt_local_frame.second;
         curr_target_pose_local_frame.position.z = 0.0;
-        RCLCPP_ERROR(this->get_logger(), "final compute time: %d seconds", compute_secs);
         return curr_target_pose_local_frame;
 
     }
@@ -447,25 +565,27 @@ int GroupCoordinator::mergePeerFrontiers(vector<string> peer_list, nav_msgs::msg
         auto request = std::make_shared<multi_robot_interfaces::srv::GetLocalMapAndFrontierCompressCpp::Request>();
         request->request_robot_name.data = robot_name_;
         auto result_future = service_client_dict_[peer]->async_send_request(request);
-        if(rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) == rclcpp::FutureReturnCode::SUCCESS){
-            
-            RCLCPP_WARN(this->get_logger(), "get map and frontier from %s", peer.c_str());
+        // if(rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) == rclcpp::FutureReturnCode::SUCCESS){
+        result_future.wait();
+
             nav_msgs::msg::OccupancyGrid peer_map;
             peer_map.header = result_future.get()->map_header;
             peer_map.info = result_future.get()->map_info;
             vector<int8_t> compressed_map_data = result_future.get()->map_data_compress;
             vector<int8_t> decompressed_map_data;
-            e_util_.decompress_vector(compressed_map_data, decompressed_map_data);
+            e_util_.decompress_vector(compressed_map_data, decompressed_map_data, result_future.get()->original_length);
             peer_map.data = decompressed_map_data;
             peer_map_dict_[peer] = peer_map;
+            RCLCPP_WARN(this->get_logger(), "get map and frontier from %s", peer.c_str());
+            std::cout<<"peer_map data length:"<<peer_map.data.size()<<std::endl;
             
             
             peer_local_frontiers_dict_[peer] = result_future.get()->local_frontier;
             get_map_update_dict_[peer] = true;
-        }else{
-            RCLCPP_ERROR(this->get_logger(), "failed to get map response from %s", peer.c_str());
-            get_map_update_dict_[peer] = false;
-        }
+        // }else{
+            // RCLCPP_ERROR(this->get_logger(), "failed to get map response from %s", peer.c_str());
+            // get_map_update_dict_[peer] = false;
+        // }
 
     }
 
@@ -493,7 +613,7 @@ int GroupCoordinator::mergePeerFrontiers(vector<string> peer_list, nav_msgs::msg
             string peer_name = update_ite->first;
             vector<double> peer_init_offset = init_offset_dict_[peer_name];
             tuple<double, double, double> init_offset = make_tuple(peer_init_offset[0] - local_robot_init_offset[0], peer_init_offset[1] - local_robot_init_offset[1], 0.0);
-            
+            std::cout<<"add TransformedGrid:"<<peer_name<<std::endl;
             map_merger.addTransformedGrid(peer_name, peer_map_dict_[peer_name], std::get<0>(init_offset), std::get<1>(init_offset), std::get<2>(init_offset), peer_local_frontiers_dict_[peer_name]);
 
 
