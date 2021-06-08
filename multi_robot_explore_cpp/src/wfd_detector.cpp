@@ -115,7 +115,7 @@
 
     // when one frontier cell is discovered, this function finds all the frontier cells that are connected to the discovered one frontier cell,
     // the returned vector of frontier cells form a frontier connect. It is feeded to further process (extract the geometrical median point)
-    vector<pair<int, int>> WindowWFD::findConnectedFrontiers(pair<int, int> cell, const nav_msgs::msg::OccupancyGrid::ConstPtr &gmap){
+    vector<pair<int, int>> WindowWFD::findConnectedFrontiers(pair<int, int> cell, nav_msgs::msg::OccupancyGrid::SharedPtr &gmap){
         vector<pair<int, int>> frontier_connects;
         vector<pair<int, int>> queue;
         queue.push_back(cell);

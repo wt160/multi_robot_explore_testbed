@@ -79,7 +79,7 @@ class MultiExploreCppNode : public rclcpp::Node{
         int going_to_target_failed_times_;
 
         bool is_local_map_received_;
-
+        bool is_task_finished_;
         // auto group_coordinator_;
 };
 #endif

@@ -19,13 +19,17 @@
 #include "std_msgs/msg/string.hpp"
 #include "multi_robot_interfaces/msg/robot_track.hpp"
 #include "multi_robot_explore_cpp/map_frontier_merger.hpp"
+#include "multi_robot_interfaces/action/group_coordinator.hpp"
+#include "multi_robot_interfaces/srv/get_peer_map_value_on_coords.hpp" 
 using namespace std;
 
 class GroupCoordinator: public rclcpp::Node{
     public:
         using NavigateToPose = nav2_msgs::action::NavigateToPose;
         using GoalHandleNavigate = rclcpp_action::ClientGoalHandle<NavigateToPose>;
-        
+        using GroupCoordinatorAction = multi_robot_interfaces::action::GroupCoordinator;
+        using GoalHandleGroupCoordinatorAction = rclcpp_action::ServerGoalHandle<GroupCoordinatorAction>;
+
         GroupCoordinator(std::string robot_name);
 
         void sendNavigationGoal(geometry_msgs::msg::Pose target_pose);
@@ -42,12 +46,23 @@ class GroupCoordinator: public rclcpp::Node{
         void timer_callback();
         void setInitOffsetDict(map<std::string, vector<double>>& init_offset_dict);
         void publishRobotTargetMarker(geometry_msgs::msg::Point start, geometry_msgs::msg::Point end);
+        rclcpp_action::GoalResponse handle_action_goal(const rclcpp_action::GoalUUID & uuid, std::shared_ptr<const GroupCoordinatorAction::Goal> goal);
+        rclcpp_action::CancelResponse handle_action_cancel(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
+        void execute(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
+        void handle_action_accepted(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
+
+
 
         int navigate_to_pose_state_ = 0;
 
+
     private:
+        map<string, rclcpp::callback_group::CallbackGroup::SharedPtr> callback_group_map_;
+        map<string, rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedPtr> get_map_value_client_dict_;
+        rclcpp_action::Server<GroupCoordinatorAction>::SharedPtr action_server_;
         rclcpp::Publisher<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_track_pub_;
         rclcpp_action::Client<NavigateToPose>::SharedPtr navigate_client_ptr_;
+        rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedPtr get_map_value_client_ptr_;
         rclcpp::Subscription<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_tracks_sub_;
         rclcpp::TimerBase::SharedPtr timer_;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr robot_target_pub_;

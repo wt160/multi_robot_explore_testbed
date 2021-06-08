@@ -36,13 +36,15 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/CompressMap.msg"
   "srv/GetLocalMap.srv"
   "srv/GetLocalMapAndFrontier.srv"
+  "srv/GetPeerMapValueOnCoords.srv"
   "srv/GetLocalMapAndFrontierCompress.srv"
   "srv/GetLocalMapAndFrontierCompressCpp.srv"
   "srv/GetPeerRobotPid.srv"
   "srv/GetPeerRobotPose.srv"
   "srv/GetPeerRobotState.srv"
   "srv/SetRobotTargetPose.srv"
-  "srv/GetPeerRobotStatePid.srv" 
+  "srv/GetPeerRobotStatePid.srv"
+  "action/GroupCoordinator.action" 
   DEPENDENCIES geometry_msgs nav_msgs std_msgs
  )
 

@@ -61,6 +61,7 @@ MultiExploreCppNode::MultiExploreCppNode(std::string robot_name, int total_robot
     // local_raw_map_ = std::make_shared<nav_msgs::msg::OccupancyGrid>();
 
     is_local_map_received_ = false;
+    is_task_finished_ = false;
 }
 
 void MultiExploreCppNode::getLocalMapAndFrontierCompressCppCallback(const std::shared_ptr<multi_robot_interfaces::srv::GetLocalMapAndFrontierCompressCpp::Request> request, std::shared_ptr<multi_robot_interfaces::srv::GetLocalMapAndFrontierCompressCpp::Response> response){
@@ -227,7 +228,10 @@ int MultiExploreCppNode::update(){
         }
         
     }else if(current_state_ == FINISH_TASK){
-        RCLCPP_ERROR(this->get_logger(), "FINISH_TASK");
+        if(is_task_finished_ == false){ 
+            is_task_finished_ = true;
+            RCLCPP_ERROR(this->get_logger(), "FINISH_TASK");
+        }
     }
     return 0;
 }

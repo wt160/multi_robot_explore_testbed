@@ -15,6 +15,7 @@
   <depend>multi_robot_explore</depend>
   <depend>robot_control_interface</depend>
   <depend>nav2_msgs</depend>
+  <depend>visualization_msgs</depend>
   <depend>std_msgs</depend>
   <depend>tf2_ros</depend>
   <test_depend>ament_lint_auto</test_depend>
