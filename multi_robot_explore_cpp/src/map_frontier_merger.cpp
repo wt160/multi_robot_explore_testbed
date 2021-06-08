@@ -157,7 +157,9 @@ nav_msgs::msg::OccupancyGrid::SharedPtr MapFrontierMerger::mergeGrids(){
                     max = val;
             }
             if (max != -1)
-                grid_ptr->data[i + j * cols] = max;
+                if(i + j*cols >= 0 && i + j*cols < grid_ptr->data.size()){ 
+                    grid_ptr->data[i + j * cols] = max;
+                }
         }
     }
 

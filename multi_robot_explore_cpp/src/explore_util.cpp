@@ -20,7 +20,7 @@ ExploreUtil::ExploreUtil(){
 
 }
 
-bool ExploreUtil::isCellObs(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell){
+bool ExploreUtil::isCellObs(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell){
     int idx = (int)(y_cell * map->info.width + x_cell);
     if(idx >= map->data.size() || idx < 0)
         return true;
@@ -40,7 +40,7 @@ bool ExploreUtil::isCellObs(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, 
     }
 }
 
-bool ExploreUtil::isCellObsOrUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell){
+bool ExploreUtil::isCellObsOrUnknown(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell){
     int idx = y_cell * map->info.width + x_cell;
     if(idx >= (map->data).size() || idx < 0)
         return true;
@@ -52,7 +52,7 @@ bool ExploreUtil::isCellObsOrUnknown(const nav_msgs::msg::OccupancyGrid::ConstPt
     }
 }
 
-bool ExploreUtil::isCellUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr &map, int x_cell, int y_cell){
+bool ExploreUtil::isCellUnknown(nav_msgs::msg::OccupancyGrid::SharedPtr &map, int x_cell, int y_cell){
     int idx = y_cell * map->info.width + x_cell;
     if(idx >= (map->data).size() || idx < 0)
         return true;
@@ -64,7 +64,7 @@ bool ExploreUtil::isCellUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr &ma
     }
 }
 
-bool ExploreUtil::isCellFree(const nav_msgs::msg::OccupancyGrid::ConstPtr &map, int x_cell, int y_cell, int free_limit){
+bool ExploreUtil::isCellFree(nav_msgs::msg::OccupancyGrid::SharedPtr &map, int x_cell, int y_cell, int free_limit){
     int idx = y_cell * map->info.width + x_cell;
 
     if(idx >= (map->data).size() || idx < 0)
@@ -96,8 +96,8 @@ std::pair<int, int> ExploreUtil::getFreeNeighborRandom(std::pair<int, int> cell,
         neigh.second = cell.second + (int)(r * sin(theta));
 
         trial_num ++;
-        std::cout<<"cell:"<<cell.first<<","<<cell.second<<std::endl;
-        std::cout<<"neigh:"<<neigh.first<<","<<neigh.second<<std::endl;
+        // std::cout<<"cell:"<<cell.first<<","<<cell.second<<std::endl;
+        // std::cout<<"neigh:"<<neigh.first<<","<<neigh.second<<std::endl;
         if(checkDirectLineCrossObs(cell, neigh, map) || isCellObs(map, neigh.first, neigh.second) || isCellUnknown(map, neigh.first, neigh.second)){
             condition = true;
         }else{
@@ -111,7 +111,7 @@ std::pair<int, int> ExploreUtil::getFreeNeighborRandom(std::pair<int, int> cell,
     return neigh;
 }
 
-bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<int, int> end, const nav_msgs::msg::OccupancyGrid::ConstPtr& map){
+bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<int, int> end, nav_msgs::msg::OccupancyGrid::SharedPtr& map){
     float curr_x = (float)start.first;
     float curr_y = (float)start.second;
 
@@ -124,7 +124,7 @@ bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<i
     while(std::abs(curr_x - end.first) > 1 || std::abs(curr_y - end.second) > 1){
         if(isCellObs(map, (int)curr_x, (int)curr_y)){
             is_line_cross_obs = true;
-            std::cout<<"line cross obs"<<std::endl;
+            // std::cout<<"line cross obs"<<std::endl;
             break;
         }
         curr_x += increment_x;
@@ -135,23 +135,23 @@ bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<i
 
 }
 
-bool ExploreUtil::isFrontier(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x, int y){
+bool ExploreUtil::isFrontier(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x, int y){
     int dw,dh;
     dw = map->info.width;
     dh = map->info.height;
     //map value == 0 : unknown cell
     int size = map->data.size();
 
-    if(x + y*dw < size && x + y*dw >= 0 && map->data[x + y*dw] != -1) return false;
+    if(x + y*dw < size && x + y*dw >= 0 && map->data.at(x + y*dw) != -1) return false;
 
-    if(x != 0 && x - 1 + y*dw < size && x - 1 + y*dw >= 0 && map->data[x - 1 + y*dw] <55 && map->data[x - 1 + y*dw] >= 0) return true;
-    if(y != 0 && x + (y-1)*dw < size && x + (y-1)*dw >= 0 && map->data[x  + (y-1)*dw] < 55 && map->data[x  + (y-1)*dw] >= 0) return true;
-    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && x -1 + (y-1)*dw >= 0 && map->data[x - 1 + (y-1)*dw] <55 && map->data[x - 1 + (y-1)*dw] >= 0) return true;
-    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && x + 1 + (y-1)*dw >= 0 && map->data[x + 1 + (y-1)*dw] < 55 && map->data[x + 1 + (y-1)*dw] >= 0) return true;
-    if(x != dw - 1 && x + 1 + y*dw < size && x + 1 + y*dw >= 0 && map->data[x + 1 + (y)*dw] < 55 && map->data[x + 1 + (y)*dw] >= 0)  return true;
-    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && x-1 + (y+1)*dw >= 0 &&  map->data[x - 1 + (y+1)*dw] < 55 && map->data[x - 1 + (y+1)*dw] >= 0) return true;
-    if( y != dh - 1 && x + (y+1)*dw < size && x + (y+1)*dw >= 0 && map->data[x  + (y+1)*dw] < 55 && map->data[x  + (y+1)*dw] >= 0) return true;
-    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size && x + 1 + (y+1)*dw >= 0 &&  map->data[x + 1 + (y+1)*dw] < 55 && map->data[x + 1 + (y+1)*dw] >= 0)  return true;
+    if(x != 0 && x - 1 + y*dw < size && x - 1 + y*dw >= 0 && map->data.at(x - 1 + y*dw) <50 && map->data.at(x - 1 + y*dw) >= 0) return true;
+    if(y != 0 && x + (y-1)*dw < size && x + (y-1)*dw >= 0 && map->data.at(x  + (y-1)*dw) < 50 && map->data.at(x  + (y-1)*dw) >= 0) return true;
+    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && x -1 + (y-1)*dw >= 0 && map->data.at(x - 1 + (y-1)*dw) <50 && map->data.at(x - 1 + (y-1)*dw) >= 0) return true;
+    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && x + 1 + (y-1)*dw >= 0 && map->data.at(x + 1 + (y-1)*dw) < 50 && map->data.at(x + 1 + (y-1)*dw) >= 0) return true;
+    if(x != dw - 1 && x + 1 + y*dw < size && x + 1 + y*dw >= 0 && map->data.at(x + 1 + (y)*dw) < 50 && map->data.at(x + 1 + (y)*dw) >= 0)  return true;
+    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && x-1 + (y+1)*dw >= 0 &&  map->data.at(x - 1 + (y+1)*dw) < 50 && map->data.at(x - 1 + (y+1)*dw) >= 0) return true;
+    if( y != dh - 1 && x + (y+1)*dw < size && x + (y+1)*dw >= 0 && map->data.at(x  + (y+1)*dw) < 50 && map->data.at(x  + (y+1)*dw) >= 0) return true;
+    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size && x + 1 + (y+1)*dw >= 0 &&  map->data.at(x + 1 + (y+1)*dw) < 50 && map->data.at(x + 1 + (y+1)*dw) >= 0)  return true;
     
     return false;
 }
@@ -204,7 +204,7 @@ void ExploreUtil::setValueForRectInMap(nav_msgs::msg::OccupancyGrid::SharedPtr &
         for(int y = min_y; y <= max_y; y++){
             int idx = y * width + x;
             if(idx >= 0 && idx < map->data.size())
-                map->data[idx] = 100;
+                map->data.at(idx) = 100;
         }
     }
     return;

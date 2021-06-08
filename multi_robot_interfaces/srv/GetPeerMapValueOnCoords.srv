@@ -1,0 +1,3 @@
+geometry_msgs/Point[] query_pt_list
+---
+int32[] pt_value_list

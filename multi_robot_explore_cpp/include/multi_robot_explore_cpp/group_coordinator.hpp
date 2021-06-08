@@ -51,7 +51,7 @@ class GroupCoordinator: public rclcpp::Node{
         rclcpp::Subscription<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_tracks_sub_;
         rclcpp::TimerBase::SharedPtr timer_;
         rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr robot_target_pub_;
-
+        rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr merged_map_debug_pub_;
         int total_robot_num_;
         std::string robot_name_;
         int current_state_;

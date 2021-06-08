@@ -12,6 +12,8 @@ GroupCoordinator::GroupCoordinator(std::string robot_name)
 
 
     robot_tracks_sub_ = this->create_subscription<multi_robot_interfaces::msg::RobotTrack>("robot_track", 10, std::bind(&GroupCoordinator::robotTrackCallback, this, std::placeholders::_1));
+    robot_target_pub_ = this->create_publisher<visualization_msgs::msg::Marker>(robot_name_ + "/robot_target_marker", 10);
+    merged_map_debug_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>(robot_name_ + "/merged_map_debug",10);
 
     last_failed_frontier_pt_.position.x = RETURN_NONE_VALUE;
     last_failed_frontier_pt_.position.y = RETURN_NONE_VALUE;
@@ -235,7 +237,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 if(peer_ite->first != robot_name_){
                     for(auto t = peer_ite->second.begin(); t != peer_ite->second.end(); t++){
                         track_list.push_back(*t);
-                        std::cout<<"track_list add:"<<t->x<<","<<t->y<<std::endl;       
+                        // std::cout<<"track_list add:"<<t->x<<","<<t->y<<std::endl;       
                     }
                 }
             }
@@ -244,6 +246,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
 
         vector<pair<double, double>> window_f_pt_current_frame_list;
         vector<pair<double, double>> f_pt_world_frame_list;
+        vector<pair<double, double>> frontier_pt_world_frame_list;
         double biggest_dist_to_closest_track = 10000000000.0;
         pair<double, double> furthest_f_pt_to_tracks = make_pair(RETURN_NONE_VALUE, RETURN_NONE_VALUE);
         if(window_frontiers_.size() > 0){
@@ -264,10 +267,15 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
 
                 window_f_pt_current_frame_list.push_back(frontier_pt);
                 pair<double, double> f_target_pt_world_frame = make_pair(0.0, 0.0);
+                pair<double, double> frontier_pt_world_frame = make_pair(0.0, 0.0);
+                
                 f_target_pt_world_frame.first = f_target_pt.first + init_offset_dict_[robot_name_][0];
                 f_target_pt_world_frame.second = f_target_pt.second + init_offset_dict_[robot_name_][1];
+                frontier_pt_world_frame.first = frontier_pt.first + init_offset_dict_[robot_name_][0];
+                frontier_pt_world_frame.second = frontier_pt.second + init_offset_dict_[robot_name_][1];
+                
                 f_pt_world_frame_list.push_back(f_target_pt_world_frame);
-
+                frontier_pt_world_frame_list.push_back(frontier_pt_world_frame);
 
 
                 
@@ -283,6 +291,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                     pair<double, double> f_pt = f_pt_world_frame_list[f_index];
                     for(geometry_msgs::msg::Point t : track_list){
                         double dist = (t.x - f_pt.first)*(t.x - f_pt.first) + (t.y - f_pt.second)*(t.y - f_pt.second);
+                        // std::cout<<"dist:"<<dist<<std::endl;
                         if(dist < smallest_dist){
                             smallest_dist = dist;
                         }
@@ -297,8 +306,16 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                 furthest_f_pt_to_tracks_index = std::distance(std::begin(small_dist_to_tracks_list), furthest_f_pt_to_tracks_iterator);
                 
                 biggest_dist_to_closest_track = small_dist_to_tracks_list[furthest_f_pt_to_tracks_index];
-
+                std::cout<<"biggest_dist_to_closest_track:"<<biggest_dist_to_closest_track<<std::endl;
                 furthest_f_pt_to_tracks = f_pt_world_frame_list[furthest_f_pt_to_tracks_index];
+                pair<double, double> furthest_frontier_pt = frontier_pt_world_frame_list[furthest_f_pt_to_tracks_index];
+                geometry_msgs::msg::Point robot_target_start, robot_target_end;
+                robot_target_start.x = furthest_frontier_pt.first;
+                robot_target_start.y = furthest_frontier_pt.second;
+                robot_target_end.x = furthest_f_pt_to_tracks.first;
+                robot_target_end.y = furthest_f_pt_to_tracks.second;
+
+                publishRobotTargetMarker(robot_target_start, robot_target_end);
             }
         }
         std::cout<<"6"<<std::endl;
@@ -333,7 +350,7 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
 
                     return none_pose;
                 }
-
+                merged_map_debug_pub_->publish(*merged_map);
                 vector<double> window_f_to_robot_dist_list;
                 double closest_window_f_to_robot_dist = 100000000.0;
                 pair<double, double> closest_window_f_pt = make_pair(RETURN_NONE_VALUE, RETURN_NONE_VALUE);
@@ -500,10 +517,16 @@ geometry_msgs::msg::Pose GroupCoordinator::hierarchicalCoordinationAssignment(){
                     RCLCPP_ERROR(this->get_logger(), "not all the window_frontiers are covered by peers");
                     if(closest_window_f_pt.first != RETURN_NONE_VALUE){
                         pair<int, int> pt_cell = make_pair((int)((closest_window_f_pt.first - merged_map->info.origin.position.x) / merged_map->info.resolution), (int)((closest_window_f_pt.second - merged_map->info.origin.position.y) / merged_map->info.resolution));
-                        
+                        std::cout<<"pt_cell:"<<pt_cell.first<<","<<pt_cell.second<<std::endl;
                         pair<int, int> observe_pt_cell = e_util_.getFreeNeighborRandom(pt_cell, merged_map, 13, 18);
-                        
+                        std::cout<<"observe_pt_cell:"<<observe_pt_cell.first<<","<<observe_pt_cell.second<<std::endl;
                         if(observe_pt_cell.first == RETURN_NONE_VALUE){
+                            rclcpp::Rate rate(2);
+                            while(1){
+
+                                merged_map_debug_pub_->publish(*merged_map);    
+                                rate.sleep();
+                            }
                             geometry_msgs::msg::Pose none_pose;
                             none_pose.position.x = FAIL_NONE_VALUE;
                             none_pose.position.y = FAIL_NONE_VALUE;
@@ -620,6 +643,12 @@ int GroupCoordinator::mergePeerFrontiers(vector<string> peer_list, nav_msgs::msg
         }
     }
     merged_map = map_merger.mergeGrids();
+    nav_msgs::msg::OccupancyGrid merged_map_msg;
+    merged_map_msg.header = merged_map->header;
+    merged_map_msg.info = merged_map->info;
+    merged_map_msg.data.reserve(merged_map->data.size());
+    merged_map_msg.data = merged_map->data;
+    merged_map_debug_pub_->publish(merged_map_msg);
     merged_frontiers = map_merger.getMergedFrontiers();
     return 1;
 

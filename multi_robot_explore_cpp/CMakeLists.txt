@@ -24,6 +24,7 @@ find_package(nav2_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(ZLIB REQUIRED)
+find_package(visualization_msgs REQUIRED)
 # find_package(multi_robot_explore REQUIRED)
 # find_package(robot_control_interface REQUIRED)
 
@@ -38,7 +39,7 @@ ENDIF(CMAKE_COMPILER_IS_GNUCC)
 
 add_executable(multi_explorer src/multi_explore_node.cpp src/explore_util.cpp src/robot_control_interface.cpp src/wfd_detector.cpp src/group_coordinator.cpp src/map_frontier_merger.cpp)
 ament_target_dependencies(multi_explorer
-rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB)
+rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB visualization_msgs)
 
 add_executable(test_cpp src/test.cpp)
 
@@ -47,13 +48,40 @@ target_include_directories(multi_explorer PRIVATE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+add_executable(group_coordinator_node src/group_coordinator_node.cpp  src/get_map_value_node.cpp  src/explore_util.cpp src/robot_control_interface.cpp src/wfd_detector.cpp src/map_frontier_merger.cpp)
+ament_target_dependencies(group_coordinator_node
+  rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB visualization_msgs)
+
+target_include_directories(group_coordinator_node PRIVATE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+
+# add_executable(get_map_value_node src/get_map_value_node.cpp src/explore_util.cpp )
+#   ament_target_dependencies(get_map_value_node
+#     rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB visualization_msgs)
+  
+# target_include_directories(get_map_value_node PRIVATE
+#     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+#     $<INSTALL_INTERFACE:include>)
+
 install(TARGETS
   multi_explorer
   DESTINATION lib/${PROJECT_NAME})
 
+# install(TARGETS
+# get_map_value_node
+#   DESTINATION lib/${PROJECT_NAME})
+
+
 install(TARGETS
   test_cpp
   DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS
+  group_coordinator_node
+  DESTINATION lib/${PROJECT_NAME})
+
 
 # install(TARGETS
 #   test_cpp

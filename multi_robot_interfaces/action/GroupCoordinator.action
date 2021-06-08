@@ -1,0 +1,10 @@
+std_msgs/String[] peer_list
+geometry_msgs/PoseStamped robot_pose_local_frame
+multi_robot_interfaces/Frontier[] window_frontiers
+int32[] window_frontiers_rank
+multi_robot_interfaces/Frontier[] local_frontiers
+nav_msgs/OccupancyGrid local_inflated_map
+geometry_msgs/PoseStamped last_failed_frontier_pt
+---
+geometry_msgs/Pose current_target_pose
+---

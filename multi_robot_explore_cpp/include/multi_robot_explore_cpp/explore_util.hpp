@@ -61,16 +61,16 @@ using namespace std;
 class ExploreUtil{
     public:
         ExploreUtil();
-        bool isCellFree(const nav_msgs::msg::OccupancyGrid::ConstPtr& map, int x_cell, int y_cell, int free_limit = 80);
-        bool isCellObs(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell);
-        bool isCellUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell);
-        bool isCellObsOrUnknown(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x_cell, int y_cell);
+        bool isCellFree(nav_msgs::msg::OccupancyGrid::SharedPtr& map, int x_cell, int y_cell, int free_limit = 80);
+        bool isCellObs(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell);
+        bool isCellUnknown(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell);
+        bool isCellObsOrUnknown(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell);
         std::vector<std::pair<int, int>> get8ConnectNeighbors(std::pair<int, int> curr_cell, int width, int height);
-        bool isFrontier(const nav_msgs::msg::OccupancyGrid::ConstPtr & map, int x, int y);
+        bool isFrontier(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x, int y);
         void inflateMap(nav_msgs::msg::OccupancyGrid::SharedPtr & input_map, nav_msgs::msg::OccupancyGrid::SharedPtr & inflated_map, int radius = 4);
         
         std::pair<int, int> getFreeNeighborRandom(std::pair<int, int> cell, nav_msgs::msg::OccupancyGrid::SharedPtr& map, int min_radius, int max_radius, int free_limit = 80);
-        bool checkDirectLineCrossObs(std::pair<int, int> start, std::pair<int, int> end, const nav_msgs::msg::OccupancyGrid::ConstPtr& map);
+        bool checkDirectLineCrossObs(std::pair<int, int> start, std::pair<int, int> end, nav_msgs::msg::OccupancyGrid::SharedPtr& map);
         void setValueForRectInMap(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int index, int radius);
         bool isFrontierWithinWindowOrObs(vector<pair<double, double>>&, geometry_msgs::msg::Pose, float, nav_msgs::msg::OccupancyGrid::SharedPtr &, set<pair<int, int>>&);
         pair<pair<double, double>, pair<double, double>> getObservePtForFrontiers(vector<pair<double, double>>&, nav_msgs::msg::OccupancyGrid::SharedPtr& map, int, int);

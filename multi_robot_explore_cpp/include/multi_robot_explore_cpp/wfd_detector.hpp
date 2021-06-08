@@ -9,7 +9,7 @@ class WindowWFD{
     public:
         WindowWFD(geometry_msgs::msg::Pose robot_pose, int window_size = 250);
         void getWindowFrontiers(nav_msgs::msg::OccupancyGrid::SharedPtr & map, vector<vector<std::tuple<int, int, int>>>& frontier_list, std::set<pair<int, int>>& covered_set);
-        vector<pair<int, int>> findConnectedFrontiers(pair<int, int> cell, const nav_msgs::msg::OccupancyGrid::ConstPtr &gmap);
+        vector<pair<int, int>> findConnectedFrontiers(pair<int, int> cell, nav_msgs::msg::OccupancyGrid::SharedPtr &gmap);
 
         int getWindowSize();
 
