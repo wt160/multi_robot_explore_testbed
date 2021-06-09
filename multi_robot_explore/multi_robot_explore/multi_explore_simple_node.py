@@ -35,7 +35,7 @@ from rclpy.action import ActionClient
 from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
-from multi_robot_interfaces.action import GroupCoordinator
+from multi_robot_interfaces.action import GroupCoordinator, WfdAction
 from multi_robot_interfaces.msg import Frontier
 from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress, GetPeerMapValueOnCoords
 from robot_control_interface.robot_control_node import RobotControlInterface
@@ -102,6 +102,8 @@ class MultiExploreNode(Node):
         self.get_map_value_srv = self.create_service(GetPeerMapValueOnCoords, self.robot_name_ + '/get_map_value_on_coords', self.getMapValueOnCoordsCallback)
 
         self._action_client = ActionClient(self, GroupCoordinator, self.robot_name_ + '/group_coordinator_action')
+
+        self.wfd_action_client = ActionClient(self, WfdAction, self.robot_name_ + '/wfd_action')
 
         self.local_map_callback_lock_ = False
         map_topic = ''
@@ -700,6 +702,56 @@ class MultiExploreNode(Node):
             self.is_action_finished_ = True
         else:
             self.get_logger().error('Goal failed with status: {}'.format(status))
+
+
+    # def send_wfd_action_goal(self):
+    #     self.wfd_action_client.wait_for_server()
+    #     while self.is_action_finished_ == False:
+    #         pass
+    #     self.is_action_finished_ = False
+    #     goal_msg = GroupCoordinator.Goal()
+    #     for peer in self.persistent_robot_peers_:
+    #         peer_msg = String()
+    #         if peer != self.robot_name_:
+    #             peer_msg.data = peer
+    #             goal_msg.peer_list.append(peer_msg)
+    #     if self.getRobotCurrentPos():
+    #         goal_msg.robot_pose_local_frame = self.current_pose_local_frame_
+    #     else:
+    #         self.get_logger().error('(send_group_coordinator_goal) fail to get robot current pose')
+    #         return
+    #     goal_msg.window_frontiers = self.window_frontiers_msg
+    #     goal_msg.window_frontiers_rank = self.window_frontiers_rank
+    #     goal_msg.local_frontiers = self.local_frontiers_msg_
+    #     goal_msg.local_inflated_map = self.inflated_local_map_
+    #     goal_msg.last_failed_frontier_pt.pose = self.last_failed_frontier_pt_ 
+
+    #     self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_group_coordinator_callback)
+
+    #     self._send_goal_future.add_done_callback(self.goal_response_callback)
+
+    # def feedback_wfd_action_callback(self, feedback):
+    #     pass
+
+    # def wfd_goal_response_callback(self, future):
+    #     goal_handle = future.result()
+    #     if not goal_handle.accepted:
+    #         self.get_logger().error('group coordinator goal rejected')
+    #         return 
+        
+    #     self.get_logger().warn('group coordinator goal accepted')
+    #     self._get_result_future = goal_handle.get_result_async()
+    #     self._get_result_future.add_done_callback(self.get_result_callback)
+
+    # def get_wfd_result_callback(self, future):
+    #     result = future.result().result
+    #     status = future.result().status
+    #     if status == GoalStatus.STATUS_SUCCEEDED:
+    #         self.get_logger().info('Goal succeeded!')
+    #         self.action_result_pose_ = result.current_target_pose
+    #         self.is_action_finished_ = True
+    #     else:
+    #         self.get_logger().error('Goal failed with status: {}'.format(status))
 
 
     def checkEnvironmentFunction(self):

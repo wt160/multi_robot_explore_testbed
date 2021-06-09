@@ -1,0 +1,8 @@
+geometry_msgs/Pose robot_pose_local_frame
+multi_robot_interfaces/Frontier[] local_frontiers
+nav_msgs/OccupancyGrid local_inflated_map
+---
+int32[] window_frontiers_rank
+multi_robot_interfaces/Frontier[] window_frontiers
+multi_robot_interfaces/Frontier[] local_frontiers
+---

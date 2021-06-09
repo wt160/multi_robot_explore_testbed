@@ -58,11 +58,16 @@ GroupCoordinator::GroupCoordinator(std::string robot_name)
         init_offset_dict_[*peer] = peer_init_offset;
     }
 
+    vector<string> peer_list_without_current;
     for(auto peer : peer_list_){ 
         callback_group_map_[peer] = this->create_callback_group(rclcpp::callback_group::CallbackGroupType::Reentrant);
         string service_name = peer + "/get_map_value_on_coords";
         get_map_value_client_dict_[peer] = this->create_client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>(service_name, rmw_qos_profile_services_default, callback_group_map_[peer]);
+        if(peer != robot_name_) peer_list_without_current.push_back(peer);
     }
+    
+
+    get_map_value_node_ = std::make_shared<GetMapValueNode>(robot_name_, peer_list_without_current);
 }
 
 void GroupCoordinator::setInitOffsetDict(map<std::string, vector<double>>& init_offset_dict){
@@ -337,45 +342,49 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                 
                 vector<pair<double, double>> uncovered_f_pt_world_list;
                 
+
+
+
                 map<int, vector<int>> f_pt_index_to_peer_value_map;
-                for(auto peer : peer_list_){
-                    while(!get_map_value_client_dict_[peer]->wait_for_service(std::chrono::seconds(1))){
-                    }
-                    auto request = std::make_shared<multi_robot_interfaces::srv::GetPeerMapValueOnCoords::Request>();
+                f_pt_index_to_peer_value_map = get_map_value_node_->getMapValue(frontier_pt_world_frame_list);
+                // for(auto peer : peer_list_){
+                //     while(!get_map_value_client_dict_[peer]->wait_for_service(std::chrono::seconds(1))){
+                //     }
+                //     auto request = std::make_shared<multi_robot_interfaces::srv::GetPeerMapValueOnCoords::Request>();
 
-                    for(int f_pt_world_index = 0; f_pt_world_index < frontier_pt_world_frame_list.size(); ++f_pt_world_index ){ 
-                        geometry_msgs::msg::Point query_pt;
-                        query_pt.x = frontier_pt_world_frame_list[f_pt_world_index].first;   
-                        query_pt.y = frontier_pt_world_frame_list[f_pt_world_index].second;   
+                //     for(int f_pt_world_index = 0; f_pt_world_index < frontier_pt_world_frame_list.size(); ++f_pt_world_index ){ 
+                //         geometry_msgs::msg::Point query_pt;
+                //         query_pt.x = frontier_pt_world_frame_list[f_pt_world_index].first;   
+                //         query_pt.y = frontier_pt_world_frame_list[f_pt_world_index].second;   
 
-                        request->query_pt_list.push_back(query_pt);          
-                    }
-                    bool get_result = false;
-                    vector<int> value_list_result;
-                    auto map_value_callback = [&,this](rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedFuture inner_future){
-                        std::cout<<"123"<<std::endl;
-                        auto result = inner_future.get();
-                        value_list_result = result->pt_value_list;
-                        get_result = true;
-                    };
-                    auto result_future = get_map_value_client_dict_[peer]->async_send_request(request, map_value_callback);
-                        // if(rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) == rclcpp::FutureReturnCode::SUCCESS){
-                    std::cout<<"send request to12 "<<peer<<std::endl;
-                    while(get_result == false){
-                        std::this_thread::sleep_for(std::chrono::milliseconds(30));
-                    }
+                //         request->query_pt_list.push_back(query_pt);          
+                //     }
+                //     bool get_result = false;
+                //     vector<int> value_list_result;
+                //     auto map_value_callback = [&,this](rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedFuture inner_future){
+                //         std::cout<<"123"<<std::endl;
+                //         auto result = inner_future.get();
+                //         value_list_result = result->pt_value_list;
+                //         get_result = true;
+                //     };
+                //     auto result_future = get_map_value_client_dict_[peer]->async_send_request(request, map_value_callback);
+                //         // if(rclcpp::spin_until_future_complete(this->get_node_base_interface(), result_future) == rclcpp::FutureReturnCode::SUCCESS){
+                //     std::cout<<"send request to12 "<<peer<<std::endl;
+                //     while(get_result == false){
+                //         std::this_thread::sleep_for(std::chrono::milliseconds(30));
+                //     }
 
-                    // result_future.wait();
-                    vector<int> value_list = value_list_result;
-                    // if(value != -1 && value < 80){
-                    //     is_covered = true;
-                    //     break;
-                    // }
-                    std::cout<<"get map value from "<<peer<<std::endl;
-                    for(int v_index = 0; v_index < frontier_pt_world_frame_list.size(); v_index ++){
-                        f_pt_index_to_peer_value_map[v_index].push_back(value_list[v_index]);
-                    }    
-                }
+                //     // result_future.wait();
+                //     vector<int> value_list = value_list_result;
+                //     // if(value != -1 && value < 80){
+                //     //     is_covered = true;
+                //     //     break;
+                //     // }
+                //     std::cout<<"get map value from "<<peer<<std::endl;
+                //     for(int v_index = 0; v_index < frontier_pt_world_frame_list.size(); v_index ++){
+                //         f_pt_index_to_peer_value_map[v_index].push_back(value_list[v_index]);
+                //     }    
+                // }
                 
                 for(auto f_pt_ite = f_pt_index_to_peer_value_map.begin(); f_pt_ite != f_pt_index_to_peer_value_map.end(); f_pt_ite ++){
                     bool is_covered = false;
@@ -1349,6 +1358,7 @@ int main(int argc, char * argv[])
     rclcpp::executors::MultiThreadedExecutor executor;
     auto node = std::make_shared<GroupCoordinator>(robot_name);
     executor.add_node(node);
+    executor.add_node(node->get_map_value_node_);
     executor.spin();
     // rclcpp::spin(std::make_shared<GroupCoordinator>(robot_name));
     // auto group_coordinator_node = std::make_shared<GroupCoordinator>(robot_name, total_robot_num);

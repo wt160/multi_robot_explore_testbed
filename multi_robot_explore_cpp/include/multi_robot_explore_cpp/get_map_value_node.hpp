@@ -18,7 +18,6 @@
 #include "std_msgs/msg/string.hpp"
 #include "multi_robot_interfaces/srv/get_peer_map_value_on_coords.hpp" 
 
-
 class GetMapValueNode: public rclcpp::Node{
     public:
         using NavigateToPose = nav2_msgs::action::NavigateToPose;
@@ -32,7 +31,6 @@ class GetMapValueNode: public rclcpp::Node{
         int navigate_to_pose_state_ = 0;
 
     private:
-
         map<string, rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedPtr> get_map_value_client_dict_;
         map<string, rclcpp::callback_group::CallbackGroup::SharedPtr> callback_group_map_;
         vector<string> peer_list_;
