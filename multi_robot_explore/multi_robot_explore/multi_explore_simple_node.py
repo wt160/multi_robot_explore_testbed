@@ -168,6 +168,7 @@ class MultiExploreNode(Node):
         self.is_leader_in_current_cluster = False
         self.last_failed_frontier_pt_ = Pose()
         self.is_action_finished_ = True
+        self.is_wfd_action_finished_ = True
         self.action_result_pose_ = None
 
     def setRobotState(self, state):
@@ -624,29 +625,35 @@ class MultiExploreNode(Node):
             #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
             #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
 
-            self.window_frontiers, self.window_frontiers_msg, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
-            if self.window_frontiers == -1 or self.window_frontiers == -2:
-                self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
-                self.current_state_ = self.e_util.CHECK_ENVIRONMENT
-            else:   
+
+            self.send_wfd_action_goal()
+            while self.is_wfd_action_finished_ != True:
+                pass 
+
+
+            # self.window_frontiers, self.window_frontiers_msg, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
+            # if self.window_frontiers == -1 or self.window_frontiers == -2:
+            #     self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
+            #     self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+            # else:   
                 
 
-                self.send_group_coordinator_goal()
-                while self.is_action_finished_ != True:
-                    pass
+            self.send_group_coordinator_goal()
+            while self.is_action_finished_ != True:
+                pass
 
 
-                self.current_target_pos_ = self.action_result_pose_
+            self.current_target_pos_ = self.action_result_pose_
 
 
-                # self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, cluster_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
-                # self.current_target_pos_ = self.group_coordinator_.hierarchicalCoordinationAssignment()
-                if self.current_target_pos_ == None:
-                    self.get_logger().error('finish local_frontiers, done for current robot')
-                    self.setRobotState(self.e_util.FINISH_TASK)
-                else:
-                    self.previous_state_ = self.e_util.CHECK_ENVIRONMENT
-                    self.setRobotState(self.e_util.GOING_TO_TARGET)
+            # self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, cluster_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
+            # self.current_target_pos_ = self.group_coordinator_.hierarchicalCoordinationAssignment()
+            if self.current_target_pos_ == None:
+                self.get_logger().error('finish local_frontiers, done for current robot')
+                self.setRobotState(self.e_util.FINISH_TASK)
+            else:
+                self.previous_state_ = self.e_util.CHECK_ENVIRONMENT
+                self.setRobotState(self.e_util.GOING_TO_TARGET)
                 
                     # no window frontiers available, find target frontier from self.local_frontiers_msg_, considering distance from peer robot_tracks 
         elif self.current_state_ == self.e_util.FINISH_TASK:
@@ -704,54 +711,51 @@ class MultiExploreNode(Node):
             self.get_logger().error('Goal failed with status: {}'.format(status))
 
 
-    # def send_wfd_action_goal(self):
-    #     self.wfd_action_client.wait_for_server()
-    #     while self.is_action_finished_ == False:
-    #         pass
-    #     self.is_action_finished_ = False
-    #     goal_msg = GroupCoordinator.Goal()
-    #     for peer in self.persistent_robot_peers_:
-    #         peer_msg = String()
-    #         if peer != self.robot_name_:
-    #             peer_msg.data = peer
-    #             goal_msg.peer_list.append(peer_msg)
-    #     if self.getRobotCurrentPos():
-    #         goal_msg.robot_pose_local_frame = self.current_pose_local_frame_
-    #     else:
-    #         self.get_logger().error('(send_group_coordinator_goal) fail to get robot current pose')
-    #         return
-    #     goal_msg.window_frontiers = self.window_frontiers_msg
-    #     goal_msg.window_frontiers_rank = self.window_frontiers_rank
-    #     goal_msg.local_frontiers = self.local_frontiers_msg_
-    #     goal_msg.local_inflated_map = self.inflated_local_map_
-    #     goal_msg.last_failed_frontier_pt.pose = self.last_failed_frontier_pt_ 
+    def send_wfd_action_goal(self):
+        self.wfd_action_client.wait_for_server()
+        while self.is_wfd_action_finished_ == False:
+            pass
+        self.is_wfd_action_finished_ = False
+        goal_msg = WfdAction.Goal()
+        goal_msg.local_frontiers = self.local_frontiers_msg_
+        if self.getRobotCurrentPos():
+            goal_msg.robot_pose_local_frame = self.current_pose_local_frame_.pose
+        else:
+            self.get_logger().error('(send_wfd_goal) fail to get robot current pose')
+            return        
+        goal_msg.local_inflated_map = self.inflated_local_map_
 
-    #     self._send_goal_future = self._action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_group_coordinator_callback)
+        self._send_wfd_goal_future = self.wfd_action_client.send_goal_async(goal_msg, feedback_callback=self.feedback_wfd_action_callback)
 
-    #     self._send_goal_future.add_done_callback(self.goal_response_callback)
+        self._send_wfd_goal_future.add_done_callback(self.wfd_goal_response_callback)
 
-    # def feedback_wfd_action_callback(self, feedback):
-    #     pass
+    def feedback_wfd_action_callback(self, feedback):
+        pass
 
-    # def wfd_goal_response_callback(self, future):
-    #     goal_handle = future.result()
-    #     if not goal_handle.accepted:
-    #         self.get_logger().error('group coordinator goal rejected')
-    #         return 
+    def wfd_goal_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error('wfd goal rejected')
+            return 
         
-    #     self.get_logger().warn('group coordinator goal accepted')
-    #     self._get_result_future = goal_handle.get_result_async()
-    #     self._get_result_future.add_done_callback(self.get_result_callback)
+        self.get_logger().warn('wfd goal accepted')
+        self._get_wfd_result_future = goal_handle.get_result_async()
+        self._get_wfd_result_future.add_done_callback(self.get_wfd_result_callback)
 
-    # def get_wfd_result_callback(self, future):
-    #     result = future.result().result
-    #     status = future.result().status
-    #     if status == GoalStatus.STATUS_SUCCEEDED:
-    #         self.get_logger().info('Goal succeeded!')
-    #         self.action_result_pose_ = result.current_target_pose
-    #         self.is_action_finished_ = True
-    #     else:
-    #         self.get_logger().error('Goal failed with status: {}'.format(status))
+    def get_wfd_result_callback(self, future):
+        result = future.result().result
+        status = future.result().status
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().info('Goal succeeded!')
+            self.local_frontiers_msg_ = result.local_frontiers
+            self.window_frontiers_msg = result.window_frontiers  
+            self.window_frontiers_rank = result.window_frontiers_rank
+            # self.window_frontiers_.clear()
+            # for wf_msg in self.window_frontiers_msg:
+                
+            self.is_wfd_action_finished_ = True
+        else:
+            self.get_logger().error('Goal failed with status: {}'.format(status))
 
 
     def checkEnvironmentFunction(self):
@@ -765,27 +769,22 @@ class MultiExploreNode(Node):
             
         #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
         #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
-
-        self.window_frontiers, self.window_frontiers_msg, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
-        if self.window_frontiers == -1 or self.window_frontiers == -2:
-            self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
-            #self.current_state_ = self.e_util.CHECK_ENVIRONMENT
-        else:   
-            #getCluster() might block, or return no cluster 
-            # cluster_list, cluster_pose_dict = self.peer_interface_.getClusterAndPoses()
-            # peer_pose_dict = self.peer_interface_.getPeerRobotPosesInLocalFrameUsingTf()
-            # self.get_logger().warn('getCluster() result:')
-            # for cluster in cluster_list:
-                # self.get_logger().warn('cluster has {}'.format(cluster))
-
-            # cluster_list = []
-            # self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, peer_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
-            self.send_group_coordinator_goal()
-            while self.is_action_finished_ != True:
-                pass
+        self.send_wfd_action_goal()
+        while self.is_wfd_action_finished_ != True:
+            pass 
 
 
-            self.next_target_pos_ = self.action_result_pose_
+        # self.window_frontiers, self.window_frontiers_msg, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
+        # if self.window_frontiers == -1 or self.window_frontiers == -2:
+        #     self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
+        #     #self.current_state_ = self.e_util.CHECK_ENVIRONMENT
+        # else:   
+        self.send_group_coordinator_goal()
+        while self.is_action_finished_ != True:
+            pass
+
+
+        self.next_target_pos_ = self.action_result_pose_
 
 
             
