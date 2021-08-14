@@ -44,6 +44,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/GetPeerRobotState.srv"
   "srv/SetRobotTargetPose.srv"
   "srv/GetPeerRobotStatePid.srv"
+  "srv/WfdService.srv"
   "action/GroupCoordinator.action" 
   "action/WfdAction.action"
   DEPENDENCIES geometry_msgs nav_msgs std_msgs
