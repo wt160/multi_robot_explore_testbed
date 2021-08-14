@@ -8,26 +8,20 @@ from launch.substitutions import LaunchConfiguration
 def generate_launch_description():
     robot_name = LaunchConfiguration('robot_name', default="tb0")
     total_robot_num = LaunchConfiguration('total_robot_num', default="2")
-    multi_robot_simple_param_file_name = 'multi_robot_simple_params.yaml'
+    multi_robot_simple_param_file_name = 'real_multi_robot_simple_params.yaml'
     multi_robot_simple_param_dir = LaunchConfiguration(
         'params',
         default=os.path.join(
             get_package_share_directory('multi_robot_explore'),
             multi_robot_simple_param_file_name))
 
-    robot_track_publisher_param_file_name = 'robot_track_publish_params.yaml'
+    robot_track_publisher_param_file_name = 'real_robot_track_publish_params.yaml'
     robot_track_publisher_param_dir = LaunchConfiguration(
         'params',
         default=os.path.join(
             get_package_share_directory('multi_robot_explore'),
             robot_track_publisher_param_file_name))
 
-    get_map_value_param_file_name = 'get_map_value_params.yaml'
-    get_map_value_param_dir = LaunchConfiguration(
-        'params',
-        default=os.path.join(
-            get_package_share_directory('multi_robot_explore'),
-            get_map_value_param_file_name))
     return LaunchDescription([
         Node(
             package='multi_robot_explore',
@@ -49,15 +43,15 @@ def generate_launch_description():
 
         ),
 
-        Node(
-            package='multi_robot_explore',
-            executable='get_map_value_node',
-            # name='robot_registry',
-            output='screen',
-            emulate_tty=True,
-            parameters=[get_map_value_param_dir],
-            arguments=[robot_name]         
+        # Node(
+        #     package='multi_robot_explore',
+        #     executable='robot_map',
+        #     # name='robot_registry',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     # parameters=[param_dir],
+        #     arguments=[robot_name]         
 
-        ),
+        # ),
 
     ])
