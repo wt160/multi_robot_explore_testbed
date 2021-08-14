@@ -1,0 +1,38 @@
+wfd_service_server_node_tb0:
+  ros__parameters:
+    robot_name: "tb0" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+wfd_service_server_node_tb1:
+  ros__parameters:
+    robot_name: "tb1" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
+wfd_service_server_node_tb2:
+  ros__parameters:
+    robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1", "tb2"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
+wfd_service_server_node_tb3:
+  ros__parameters:
+    robot_name: "tb3" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1", "tb2"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+

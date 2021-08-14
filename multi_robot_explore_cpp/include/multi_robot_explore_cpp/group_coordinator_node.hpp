@@ -32,7 +32,7 @@ class GroupCoordinator: public rclcpp::Node{
         using GroupCoordinatorAction = multi_robot_interfaces::action::GroupCoordinator;
         using GoalHandleGroupCoordinatorAction = rclcpp_action::ServerGoalHandle<GroupCoordinatorAction>;
 
-        GroupCoordinator(std::string robot_name);
+        GroupCoordinator(std::string robot_name, std::string mode);
 
         void sendNavigationGoal(geometry_msgs::msg::Pose target_pose);
         void goalResponseCallback(GoalHandleNavigate::SharedPtr goal_handle);
@@ -41,7 +41,7 @@ class GroupCoordinator: public rclcpp::Node{
         void navigateToPoseResultCallback(const GoalHandleNavigate::WrappedResult & result);
         void setPeerInfo(vector<string> peer_list, geometry_msgs::msg::Pose current_robot_pose_local_frame, vector<vector<pair<double, double>>>& window_frontiers, vector<int>& window_frontiers_rank, vector<vector<pair<double, double>>>& local_frontiers, vector<Frontier>& local_frontiers_msg, nav_msgs::msg::OccupancyGrid::SharedPtr& local_inflated_map, map<std::string, vector<double>>& init_offset_dict, geometry_msgs::msg::Pose last_failed_frontier_pt);
 
-        geometry_msgs::msg::Pose hierarchicalCoordinationAssignment();
+        // geometry_msgs::msg::Pose hierarchicalCoordinationAssignment();
         void robotTrackCallback(const multi_robot_interfaces::msg::RobotTrack::SharedPtr msg);
         int mergePeerFrontiers(vector<string> peer_list, nav_msgs::msg::OccupancyGrid::SharedPtr& merged_map, vector<Frontier>& merged_frontiers);
         bool getRobotCurrentPose(geometry_msgs::msg::Pose & local_pose, geometry_msgs::msg::Pose & global_pose);
@@ -61,6 +61,7 @@ class GroupCoordinator: public rclcpp::Node{
 
     private:
         map<string, rclcpp::callback_group::CallbackGroup::SharedPtr> callback_group_map_;
+        rclcpp::callback_group::CallbackGroup::SharedPtr group_coordinator_callback_group_;
         map<string, rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedPtr> get_map_value_client_dict_;
         rclcpp_action::Server<GroupCoordinatorAction>::SharedPtr action_server_;
         rclcpp::Publisher<multi_robot_interfaces::msg::RobotTrack>::SharedPtr robot_track_pub_;
@@ -102,6 +103,7 @@ class GroupCoordinator: public rclcpp::Node{
 
         std::unique_ptr<tf2_ros::Buffer> buffer_;
         std::shared_ptr<tf2_ros::TransformListener> tfl_;
-
+        int target_search_min_;
+        int target_search_max_;
 };
 #endif

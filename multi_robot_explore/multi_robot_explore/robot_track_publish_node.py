@@ -37,7 +37,7 @@ from robot_control_interface.robot_control_node import RobotControlInterface
 # self.get_logger().info()
 class RobotTrackPublisherNode(Node):
     
-    def __init__(self, robot_name):
+    def __init__(self, robot_name, mode = "real_robot"):
         super().__init__('robot_track_publisher_' + robot_name)
         self.DEBUG_ = True
         self.para_group = ReentrantCallbackGroup()
@@ -49,6 +49,7 @@ class RobotTrackPublisherNode(Node):
         self.previous_state_ = -1
         #current robot_peers 
         self.robot_peers_ = []
+        self.mode_ = mode
         #all the robot_peers ever discovered in history, no matter current network status
         self.persistent_robot_peers_ = []
         #the ever growing merged global_map of current robot, will update with new peer_map and new local_map
@@ -79,7 +80,16 @@ class RobotTrackPublisherNode(Node):
         timer_period = 2  # seconds
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.publisher_ = self.create_publisher(RobotTrack, 'robot_track', 10)
-        
+        self.robot_pose_sub_ = self.create_subscription(
+            Point,
+            self.robot_name_ + '/robot_pose',
+            self.robotPoseCallback,
+            10)
+        self.robot_pose_sub_  # prevent unused variable warning
+
+
+
+
         self.init_offset_dict_ = dict()
         self.init_offset_to_current_robot_dict_ = dict()
 
@@ -89,10 +99,16 @@ class RobotTrackPublisherNode(Node):
                 ('robot_name', None),
                 ('peer_list', None),
                 ('simulation_mode', None),
-                ('tb0_init_offset', None),
+                 ('tb0_init_offset', None),
                 ('tb1_init_offset', None),
                 ('tb2_init_offset', None),
                 ('tb3_init_offset', None),
+                ('tb4_init_offset', None),
+                ('tb5_init_offset', None),
+                ('tb6_init_offset', None),
+                ('tb7_init_offset', None),
+                ('tb8_init_offset', None),
+                ('tb9_init_offset', None),
                 ('pid', None)
             ]
         )
@@ -104,7 +120,7 @@ class RobotTrackPublisherNode(Node):
 
         self.e_util = ExploreUtil()
         self.getPeerRobotInitPose()
-       
+
     def getPeerRobotInitPose(self):
         for robot in self.persistent_robot_peers_:
             param_name = robot + '_init_offset'
@@ -120,11 +136,25 @@ class RobotTrackPublisherNode(Node):
             self.init_offset_dict_[robot].orientation.z = init_offset[5] 
             self.init_offset_dict_[robot].orientation.w = init_offset[6] 
     
+
+    def robotPoseCallback(self, msg):
+        self.current_pose_local_frame_.pose.position.x = msg.x
+        self.current_pose_local_frame_.pose.position.y = msg.y
+        self.current_pose_local_frame_.pose.position.z = 0.0
+        self.current_pose_local_frame_.pose.orientation.x = 0.0
+        self.current_pose_local_frame_.pose.orientation.y = 0.0
+        self.current_pose_local_frame_.pose.orientation.z = 0.0
+        self.current_pose_local_frame_.pose.orientation.w = 1.0
+
     def timer_callback(self):
-        self.getRobotCurrentPos()
         track = Point()
-        track.x = self.current_pos_[0] + self.init_offset_dict_[self.robot_name_].position.x
-        track.y = self.current_pos_[1] + self.init_offset_dict_[self.robot_name_].position.y
+        if self.mode_ == "real_robot":
+            self.getRobotCurrentPos()
+            track.x = self.current_pos_[0] + self.init_offset_dict_[self.robot_name_].position.x
+            track.y = self.current_pos_[1] + self.init_offset_dict_[self.robot_name_].position.y
+        elif self.mode_ == "swarm_simulation":
+            track.x = self.current_pose_local_frame_.pose.position.x 
+            track.y = self.current_pose_local_frame_.pose.position.y 
 
         msg = RobotTrack()
         msg.robot_name.data = self.robot_name_
@@ -166,8 +196,9 @@ def main(args=None):
     rclpy.init(args=args)
     #robot_name = ''
     robot_name = sys.argv[1]
+    mode = sys.argv[2]
     #peer_robot_name = sys.argv[2]  
-    robot_track_pub = RobotTrackPublisherNode(robot_name)
+    robot_track_pub = RobotTrackPublisherNode(robot_name, mode)
     
     rclpy.spin(robot_track_pub)
     robot_track_pub.get_logger().info('system shutdown...')

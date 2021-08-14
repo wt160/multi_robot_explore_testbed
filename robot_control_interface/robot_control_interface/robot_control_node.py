@@ -16,7 +16,7 @@ from tf2_ros.buffer import Buffer
 from tf2_ros.transform_listener import TransformListener
 from geometry_msgs.msg import Twist, PoseStamped
 from multi_robot_explore.explore_util import ExploreUtil
-
+from swarm_interfaces.action import NavigationAction
 
 class RobotControlInterface(Node):
     def __init__(self, robot_name):
@@ -28,6 +28,7 @@ class RobotControlInterface(Node):
         self.cmd_vel_pub_ = self.create_publisher(Twist, robot_name + '/cmd_vel', 10)
         self.compute_path_client_ = ActionClient(self, ComputePathToPose, robot_name + '/compute_path_to_pose')
         self.navigate_to_pose_client_ = ActionClient(self, NavigateToPose, robot_name + '/navigate_to_pose')
+        self.swarm_simulation_navigate_to_pose_client_ = ActionClient(self, NavigationAction, robot_name + '/navigation_action')
         self.get_path_result = None
         self.get_path_done_ = False
         self.e_util = ExploreUtil()
@@ -114,7 +115,39 @@ class RobotControlInterface(Node):
         else:
             self.get_logger().info('navigateToPoseAction failed with status: {0}'.format(status))
             self.navigate_to_pose_state_ = self.e_util.NAVIGATION_FAILED
+    
+
+    def navigateToPoseSwarmSimulationFunction(self, target_pose):
+        self.navigate_to_pose_state_ = self.e_util.NAVIGATION_MOVING
+        target_pose_stamped = PoseStamped()
+        target_pose_stamped.pose = target_pose
+        goal_msg = NavigationAction.Goal()
+        goal_msg.target_pose_local_frame = target_pose_stamped
+        self.swarm_simulation_navigate_to_pose_client_.wait_for_server()
+        # send_goal_async test
+        self.send_goal_future = self.swarm_simulation_navigate_to_pose_client_.send_goal_async(goal_msg)
+        self.send_goal_future.add_done_callback(self.navigateToPoseSwarmSimulationResponseCallback)
+        return self.send_goal_future
         
+    def navigateToPoseSwarmSimulationResponseCallback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('NavigateToPoseGoal rejected')
+            return
+        self.get_logger().info('NavigateToPoseGoal accepted')
+        self.get_result_future = goal_handle.get_result_async()
+        self.get_result_future.add_done_callback(self.navigateToPoseSwarmSimulationResultCallback)
+
+    def navigateToPoseSwarmSimulationResultCallback(self, future):
+        status = future.result().status
+        result = future.result().result
+        if status == 1:
+            # self.get_logger().info('Goal succeeded! Result: {0}'.format(result.sequence))
+            self.get_logger().info('navigateToPoseAction finished!')
+            self.navigate_to_pose_state_ = self.e_util.NAVIGATION_DONE
+        else:
+            self.get_logger().info('navigateToPoseAction failed with status: {0}'.format(status))
+            self.navigate_to_pose_state_ = self.e_util.NAVIGATION_FAILED
 
     def stopAtPlace(self):
         self.sendCmdVel(0.0, 0.0, 0.0)
@@ -125,6 +158,6 @@ class RobotControlInterface(Node):
     def rotateNCircles(self, n, v_w):
         t_0 = time.time()
         while time.time() - t_0 < n*2*3.14159/v_w:
-            self.get_logger().info('rotateNCircles')
+            # self.get_logger().info('rotateNCircles')
             self.sendCmdVel(0.0, 0.0, v_w)
             
