@@ -136,8 +136,12 @@ class MultiExploreNode(Node):
             # qos_profile=qos_profile_sensor_data)
         # rclpy.spin_once(self)
         peer_list_param_name =  'peer_list'
-        self.persistent_robot_peers_ = self.get_parameter(peer_list_param_name).value
+        param_robot_peers_ = self.get_parameter(peer_list_param_name).value
         print('robot peers from param file:')
+        i = 0
+        while i < self.total_robot_num_:
+            self.persistent_robot_peers_.append(param_robot_peers_[i])
+
         print(self.persistent_robot_peers_)
         print(len(self.persistent_robot_peers_))
         self.e_util = ExploreUtil()
