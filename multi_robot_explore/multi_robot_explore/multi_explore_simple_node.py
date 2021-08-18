@@ -148,7 +148,7 @@ class MultiExploreNode(Node):
 
         for peer in self.persistent_robot_peers_:
             if peer != self.robot_name_:
-                self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords')
+                self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords', callback_group=self.para_group)
 
         # self.peer_interface_ = PeerInterfaceNode(self.robot_name_)
         self.tic_ = 0
@@ -822,7 +822,11 @@ class MultiExploreNode(Node):
                 req = GetPeerMapValueOnCoords.Request()
                 req.query_pt_list = check_pt_list
                 self.get_logger().info('before')
-                res = self.get_map_value_client_map_[peer].call(req)
+                res_future = self.get_map_value_client_map_[peer].call_async(req)
+
+                while not res_future.done():
+                    pass
+                res = res_future.result()
                 self.get_logger().info('after')
                 value_list_result = res.pt_value_list
                 for v_index in range(len(check_pt_list)):
@@ -999,7 +1003,11 @@ class MultiExploreNode(Node):
                 self.next_target_pos_ = closest_window_f_pt
             else:
                 all_local_f_covered_by_peers = True 
-                self.get_logger().error('done ,rest......')
+                self.get_logger().error('done ,rest......1')
+                self.get_logger().error('done ,rest......2')
+                self.get_logger().error('done ,rest......3')
+                self.get_logger().error('done ,rest......4')
+                self.get_logger().error('done ,rest......5')
 
                 #only case that requires another action request
                 #send another action request to merge map and find closest merged_f_pt 

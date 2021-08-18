@@ -426,7 +426,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                         temp.y = pt.second;
                         check_pt_list.push_back(temp);
                     }
-
+                    std::cout<<"mode 3(all local_frontiers suspected covered)"<<std::endl;
                     result->check_pt_list = check_pt_list;
                     result->return_state = 3;
                     result->dist_to_f_list = dist_from_current_to_local_target;
