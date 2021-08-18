@@ -429,3 +429,16 @@ void ExploreUtil::getFrontiersDebugMap(vector<vector<pair<double, double>>> fron
         }
     }
 }
+
+multimap<double, pair<double, double>> ExploreUtil::invertMap(map<pair<double, double>, double> & mymap)
+{
+	multimap<double, pair<double, double>> multiMap;
+
+	map<pair<double, double>, double>::iterator it;
+	for (it=mymap.begin(); it!=mymap.end(); it++) 
+	{
+		multiMap.insert(make_pair(it->second, it->first));
+	}
+
+	return multiMap;
+}

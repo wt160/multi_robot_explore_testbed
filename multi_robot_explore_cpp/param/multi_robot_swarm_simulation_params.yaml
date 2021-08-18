@@ -1,38 +1,157 @@
 group_coordinator_tb0:
   ros__parameters:
     robot_name: "tb0" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1"]
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
     tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
 group_coordinator_tb1:
   ros__parameters:
     robot_name: "tb1" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1"]
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
     tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
 
 group_coordinator_tb2:
   ros__parameters:
     robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1", "tb2"]
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
     tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
 
 
 group_coordinator_tb3:
   ros__parameters:
     robot_name: "tb3" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1", "tb2"]
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
     tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+group_coordinator_tb4:
+  ros__parameters:
+    robot_name: "tb0" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+group_coordinator_tb5:
+  ros__parameters:
+    robot_name: "tb1" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
+group_coordinator_tb6:
+  ros__parameters:
+    robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
+group_coordinator_tb7:
+  ros__parameters:
+    robot_name: "tb3" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+group_coordinator_tb8:
+  ros__parameters:
+    robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
+group_coordinator_tb9:
+  ros__parameters:
+    robot_name: "tb3" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
+    peer_list: ["tb0", "tb1","tb2", "tb3","tb4", "tb5","tb6", "tb7","tb8", "tb9"]
+    tb0_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb1_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb2_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb3_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb4_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb5_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb6_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb7_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb8_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    tb9_init_offset: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+
+
 
