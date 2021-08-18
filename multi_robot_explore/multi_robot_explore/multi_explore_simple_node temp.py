@@ -24,6 +24,14 @@ from tf2_ros.transform_listener import TransformListener
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.action import ActionClient
+# from collections.abc import Sequence
+# from collections.abc import Set
+# from collections import UserList
+# from collections import UserString
+
+
+
+
 from geometry_msgs.msg import PointStamped
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import PoseStamped
@@ -31,7 +39,10 @@ from multi_robot_interfaces.action import GroupCoordinator, WfdAction
 from multi_robot_interfaces.msg import Frontier
 from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress, GetPeerMapValueOnCoords, WfdService
 from robot_control_interface.robot_control_node import RobotControlInterface
-
+# from multi_robot_explore.peer_interface_node import PeerInterfaceNode
+# from multi_robot_explore.group_coordinator import GroupCoordinator
+# import explore_util.ExploreUtil as explore_util
+# self.get_logger().info()
 class MultiExploreNode(Node):
     
     def __init__(self, robot_name, total_robot_num):
@@ -88,13 +99,8 @@ class MultiExploreNode(Node):
 
         self.local_map_and_frontier_srv = self.create_service(GetLocalMapAndFrontierCompress, self.robot_name_ + '/get_local_map_and_frontier_compress', self.getLocalMapAndFrontierCompressCallback)
 
-        # self.get_map_value_srv = self.create_service(GetPeerMapValueOnCoords, self.robot_name_ + '/get_map_value_on_coords', self.getMapValueOnCoordsCallback)
-        
-        self.get_map_value_client_map_ = dict()
-        
-        
-        
-        self.wfd_service_client = self.create_client(WfdService, self.robot_name_ + '/wfd_service', callback_group=self.para_group)
+        self.get_map_value_srv = self.create_service(GetPeerMapValueOnCoords, self.robot_name_ + '/get_map_value_on_coords', self.getMapValueOnCoordsCallback)
+        self.wfd_service_client = self.create_client(WfdService, self.robot_name_ + '/wfd_service')
         self._action_client = ActionClient(self, GroupCoordinator, self.robot_name_ + '/group_coordinator_action')
 
         self.wfd_action_client = ActionClient(self, WfdAction, self.robot_name_ + '/wfd_action')
@@ -136,12 +142,8 @@ class MultiExploreNode(Node):
             # qos_profile=qos_profile_sensor_data)
         # rclpy.spin_once(self)
         peer_list_param_name =  'peer_list'
-        param_robot_peers_ = self.get_parameter(peer_list_param_name).value
+        self.persistent_robot_peers_ = self.get_parameter(peer_list_param_name).value
         print('robot peers from param file:')
-        i = 0
-        while i < self.total_robot_num_:
-            self.persistent_robot_peers_.append(param_robot_peers_[i])
-
         print(self.persistent_robot_peers_)
         print(len(self.persistent_robot_peers_))
         self.e_util = ExploreUtil()
@@ -149,10 +151,6 @@ class MultiExploreNode(Node):
         
         self.r_interface_ = RobotControlInterface(self.robot_name_)
         self.r_interface_.debugPrint()
-
-        for peer in self.persistent_robot_peers_:
-            if peer != self.robot_name_:
-                self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords', callback_group=self.para_group)
 
         # self.peer_interface_ = PeerInterfaceNode(self.robot_name_)
         self.tic_ = 0
@@ -171,11 +169,7 @@ class MultiExploreNode(Node):
         self.last_failed_frontier_pt_ = Pose()
         self.is_action_finished_ = True
         self.is_wfd_action_finished_ = True
-        self.group_action_result_pose_ = None
-        self.group_action_result_return_state_ = None
-        self.group_action_result_check_pt_list_ = None
-        self.group_action_result_dist_to_f_list_ = None
-        self.group_action_result_f_list_ = None
+        self.action_result_pose_ = None
 
     def setRobotState(self, state):
         self.current_state_ = state
@@ -236,20 +230,20 @@ class MultiExploreNode(Node):
                 init_success = False
         self.getPeerRobotInitPose()
 
-    # def getMapValueOnCoordsCallback(self, request, response):
-    #     self.get_logger().warn('getMapValueOnCoordsCallback!!!!!!!!!!!!!!!!!!!!!')
-    #     query_pt_list = request.query_pt_list
-    #     for query_pt in query_pt_list:
-    #         local_query_pt = query_pt
-    #         local_query_pt.x = query_pt.x - self.init_offset_dict_[self.robot_name_].position.x
-    #         local_query_pt.y = query_pt.y - self.init_offset_dict_[self.robot_name_].position.y
-    #         local_query_pt.z = query_pt.z - self.init_offset_dict_[self.robot_name_].position.z 
-    #         local_cell_x = (int)((local_query_pt.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution)
-    #         local_cell_y = (int)((local_query_pt.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution)
-    #         local_cell_idx = local_cell_y*self.inflated_local_map_.info.width + local_cell_x
-    #         response.pt_value_list.append(self.inflated_local_map_.data[local_cell_idx])
+    def getMapValueOnCoordsCallback(self, request, response):
+        self.get_logger().warn('getMapValueOnCoordsCallback!!!!!!!!!!!!!!!!!!!!!')
+        query_pt_list = request.query_pt_list
+        for query_pt in query_pt_list:
+            local_query_pt = query_pt
+            local_query_pt.x = query_pt.x - self.init_offset_dict_[self.robot_name_].position.x
+            local_query_pt.y = query_pt.y - self.init_offset_dict_[self.robot_name_].position.y
+            local_query_pt.z = query_pt.z - self.init_offset_dict_[self.robot_name_].position.z 
+            local_cell_x = (int)((local_query_pt.x - self.inflated_local_map_.info.origin.position.x) / self.inflated_local_map_.info.resolution)
+            local_cell_y = (int)((local_query_pt.y - self.inflated_local_map_.info.origin.position.y) / self.inflated_local_map_.info.resolution)
+            local_cell_idx = local_cell_y*self.inflated_local_map_.info.width + local_cell_x
+            response.pt_value_list.append(self.inflated_local_map_.data[local_cell_idx])
 
-    #     return response
+        return response
 
     def getLocalMapAndFrontierCompressCallback(self, request, response):
         # self.get_logger().warn('{} getLocalMapAndFrontierCompressRequest'.format(self.robot_name_))
@@ -325,7 +319,7 @@ class MultiExploreNode(Node):
         self.local_map_ = map_msg
 
         #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
-        self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 5)
+        self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 4)
         #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
         self.inflated_map_pub_.publish(self.local_map_)
         self.local_map_callback_lock_ = False
@@ -555,7 +549,7 @@ class MultiExploreNode(Node):
             if self.current_target_pos_ == None:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
                 return
-            #self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
+            self.get_logger().warn('go to target:({},{}), orientation({},{},{},{})'.format(self.current_target_pos_.position.x, self.current_target_pos_.position.y, self.current_target_pos_.orientation.x, self.current_target_pos_.orientation.y, self.current_target_pos_.orientation.z, self.current_target_pos_.orientation.w))
             self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             # self.getRobotCurrentPos()
             # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
@@ -632,15 +626,10 @@ class MultiExploreNode(Node):
             #check current window_frontiers, if window_frontiers is empty, then FINISH_TARGET_WINDOW_DONE
             #if window_frontiers is not empty, then FINISH_TARGET_WINDOW_NOT_DONE
 
-            wfd_response_future = self.send_wfd_service_request()
+            wfd_response = self.send_wfd_service_request()
             # self.send_wfd_action_goal()
             # while self.is_wfd_action_finished_ != True:
             #     pass 
-            while not wfd_response_future.done():
-                pass
-            wfd_response = wfd_response_future.result()
-            self.get_logger().error('Get wfd_response')
-            
             self.local_frontiers_msg_ = wfd_response.local_frontiers
             self.window_frontiers_msg = wfd_response.window_frontiers  
             self.window_frontiers_rank = wfd_response.window_frontiers_rank
@@ -655,83 +644,9 @@ class MultiExploreNode(Node):
             self.send_group_coordinator_goal()
             while self.is_action_finished_ != True:
                 pass
-            
-            if self.group_action_result_return_state_ == 1:
-                self.current_target_pos_ = self.group_action_result_pose_
-            elif self.group_action_result_return_state_ == 2:
-                #check window_frontier_pt, if 1), all window_f_pt covered, then go to the local_f_pt that is furthest from peers; 2) not all window_f_pt covered, 
-                # go to closest uncovered window_f_pt.
-                all_window_f_covered_by_peers  =  True                      
-                f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_) 
 
 
-                uncovered_f_pt_index_list = []
-                for f_pt_index in f_pt_index_to_peer_value_map:
-                    is_covered = False
-                    for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                        if f_pt_value != -1 and f_pt_value < 80:
-                            is_covered = True
-                            break 
-                    if is_covered == False:
-                        uncovered_f_pt_index_list.append(f_pt_index)
-                
-                if len(uncovered_f_pt_index_list) > 0:
-                    all_window_f_covered_by_peers = False 
-                    #go to closest uncovered window_f_pt
-                    closest_dist = 10000000
-                    closest_index = 0
-                    for index in range(len(self.group_action_result_dist_to_f_list_)):
-                        if index in uncovered_f_pt_index_list:
-                            if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                                closest_dist = self.group_action_result_dist_to_f_list_[index]
-                                closest_index = index
-                    closest_window_f_pt = Pose()
-                    closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                    closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                    self.current_target_pos_ = closest_window_f_pt
-
-
-                else:
-                    all_window_f_covered_by_peers = True 
-                    #go to the furthest local_f_pt from peers
-                    self.current_target_pos_ = self.group_action_result_pose_
-
-            elif self.group_action_result_return_state_ == 3:
-                #check local_frontier_pt, if 1), all local_f_pt covered, then merge map, 2), not all local_f_pt covered, go to closest local_f_pt
-                all_local_f_covered_by_peers  =  True  
-                f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_ )
-                
-
-
-                uncovered_f_pt_index_list = []
-                for f_pt_index in f_pt_index_to_peer_value_map:
-                    is_covered = False
-                    for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                        if f_pt_value != -1 and f_pt_value < 80:
-                            is_covered = True
-                            break 
-                    if is_covered == False:
-                        uncovered_f_pt_index_list.append(f_pt_index)
-                
-                if len(uncovered_f_pt_index_list) > 0:
-                    all_local_f_covered_by_peers = False 
-                    #go to closest uncovered local_f_pt, doesn't another action request
-                    closest_dist = 10000000
-                    closest_index = 0
-                    for index in range(len(self.group_action_result_dist_to_f_list_)):
-                        if index in uncovered_f_pt_index_list:
-                            if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                                closest_dist = self.group_action_result_dist_to_f_list_[index]
-                                closest_index = index
-                    closest_window_f_pt = Pose()
-                    closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                    closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                    self.current_target_pos_ = closest_window_f_pt
-                else:
-                    all_local_f_covered_by_peers = True 
-                    #only case that requires another action request
-                    #send another action request to merge map and find closest merged_f_pt 
-
+            self.current_target_pos_ = self.action_result_pose_
 
 
             # self.group_coordinator_.setPeerInfo(self.persistent_robot_peers_, peer_pose_dict, cluster_list, cluster_pose_dict, self.window_frontiers, self.window_frontiers_rank, self.local_frontiers_, self.local_frontiers_msg_, self.inflated_local_map_, self.peer_interface_.init_offset_dict_, self.last_failed_frontier_pt_)
@@ -797,11 +712,7 @@ class MultiExploreNode(Node):
         status = future.result().status
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Goal succeeded!')
-            self.group_action_result_pose_ = result.current_target_pose
-            self.group_action_result_check_pt_list_ = result.check_pt_list 
-            self.group_action_result_return_state_ = result.return_state 
-            self.group_action_result_dist_to_f_list_ = result.dist_to_f_list
-            self.group_action_result_f_list_ = result.f_list
+            self.action_result_pose_ = result.current_target_pose
             self.is_action_finished_ = True
         else:
             self.get_logger().error('Goal failed with status: {}'.format(status))
@@ -812,36 +723,10 @@ class MultiExploreNode(Node):
         req = WfdService.Request()
         if self.getRobotCurrentPos():
             req.robot_pose_local_frame = self.current_pose_local_frame_.pose
-        req.local_frontiers = self.local_frontiers_msg_ 
+        req.local_frontiers = self.local_frontiers_msg_
         req.local_inflated_map = self.inflated_local_map_
-        return self.wfd_service_client.call_async(req)
+        return self.wfd_service_client.call(req)
         
-
-    def send_get_map_values_request(self, check_pt_list):
-        f_pt_index_to_peer_value_map = dict()
-        for peer in self.persistent_robot_peers_:
-            if peer != self.robot_name_:
-                while not self.get_map_value_client_map_[peer].wait_for_service(timeout_sec=1.0):
-                    pass 
-                req = GetPeerMapValueOnCoords.Request()
-                req.query_pt_list = check_pt_list
-                self.get_logger().info('before')
-                res_future = self.get_map_value_client_map_[peer].call_async(req)
-
-                while not res_future.done():
-                    pass
-                res = res_future.result()
-                self.get_logger().info('after')
-                value_list_result = res.pt_value_list
-                for v_index in range(len(check_pt_list)):
-                    if v_index in f_pt_index_to_peer_value_map:
-                        f_pt_index_to_peer_value_map[v_index].append(value_list_result[v_index])
-                    else:
-                        f_pt_index_to_peer_value_map[v_index] = [] 
-                        f_pt_index_to_peer_value_map[v_index].append(value_list_result[v_index])
-
-        return f_pt_index_to_peer_value_map
-
 
     def send_wfd_action_goal(self):
         self.wfd_action_client.wait_for_server()
@@ -904,14 +789,10 @@ class MultiExploreNode(Node):
         # self.send_wfd_action_goal()
         # while self.is_wfd_action_finished_ != True:
         #     pass 
-        wfd_response_future = self.send_wfd_service_request()
-            # self.send_wfd_action_goal()
-            # while self.is_wfd_action_finished_ != True:
-            #     pass 
-        while not wfd_response_future.done():
-            pass
-        wfd_response = wfd_response_future.result()
-
+        wfd_response = self.send_wfd_service_request()
+        # self.send_wfd_action_goal()
+        # while self.is_wfd_action_finished_ != True:
+        #     pass 
         self.local_frontiers_msg_ = wfd_response.local_frontiers
         self.window_frontiers_msg = wfd_response.window_frontiers  
         self.window_frontiers_rank = wfd_response.window_frontiers_rank
@@ -923,99 +804,22 @@ class MultiExploreNode(Node):
         #     #self.current_state_ = self.e_util.CHECK_ENVIRONMENT
         # else:   
         self.send_group_coordinator_goal()
-        self.get_logger().error('sent group_coordinator_goal')
         while self.is_action_finished_ != True:
             pass
-        self.get_logger().error('get result from group_coordinator_goal')
-
-        if self.group_action_result_return_state_ == 1:
-            self.get_logger().error('state 1')
-            # self.current_target_pos_ = self.group_action_result_pose_
-            self.next_target_pos_ = self.group_action_result_pose_
-        elif self.group_action_result_return_state_ == 2:
-            self.get_logger().error('state 2')
-
-            #check window_frontier_pt, if 1), all window_f_pt covered, then go to the local_f_pt that is furthest from peers; 2) not all window_f_pt covered, 
-            # go to closest uncovered window_f_pt.
-            all_window_f_covered_by_peers  =  True                      
-            f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_) 
 
 
-            uncovered_f_pt_index_list = []
-            for f_pt_index in f_pt_index_to_peer_value_map:
-                is_covered = False
-                for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                    if f_pt_value != -1 and f_pt_value < 80:
-                        is_covered = True
-                        break 
-                if is_covered == False:
-                    uncovered_f_pt_index_list.append(f_pt_index)
+        self.next_target_pos_ = self.action_result_pose_
+
+
             
-            if len(uncovered_f_pt_index_list) > 0:
-                all_window_f_covered_by_peers = False 
-                #go to closest uncovered window_f_pt
-                closest_dist = 10000000
-                closest_index = 0
-                for index in range(len(self.group_action_result_dist_to_f_list_)):
-                    if index in uncovered_f_pt_index_list:
-                        if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                            closest_dist = self.group_action_result_dist_to_f_list_[index]
-                            closest_index = index
-                closest_window_f_pt = Pose()
-                closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                self.next_target_pos_ = closest_window_f_pt
-
-
-            else:
-                all_window_f_covered_by_peers = True 
-                #go to the furthest local_f_pt from peers
-                self.next_target_pos_ = self.group_action_result_pose_
-
-        elif self.group_action_result_return_state_ == 3:
-            self.get_logger().error('state 3')
-
-            #check local_frontier_pt, if 1), all local_f_pt covered, then merge map, 2), not all local_f_pt covered, go to closest local_f_pt
-            all_local_f_covered_by_peers  =  True  
-            f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_ )
             
-
-
-            uncovered_f_pt_index_list = []
-            for f_pt_index in f_pt_index_to_peer_value_map:
-                is_covered = False
-                for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                    if f_pt_value != -1 and f_pt_value < 80:
-                        is_covered = True
-                        break 
-                if is_covered == False:
-                    uncovered_f_pt_index_list.append(f_pt_index)
             
-            if len(uncovered_f_pt_index_list) > 0:
-                all_local_f_covered_by_peers = False 
-                #go to closest uncovered local_f_pt, doesn't another action request
-                closest_dist = 10000000
-                closest_index = 0
-                for index in range(len(self.group_action_result_dist_to_f_list_)):
-                    if index in uncovered_f_pt_index_list:
-                        if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                            closest_dist = self.group_action_result_dist_to_f_list_[index]
-                            closest_index = index
-                closest_window_f_pt = Pose()
-                closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                self.next_target_pos_ = closest_window_f_pt
-            else:
-                all_local_f_covered_by_peers = True 
-                self.get_logger().error('done ,rest......1')
-                self.get_logger().error('done ,rest......2')
-                self.get_logger().error('done ,rest......3')
-                self.get_logger().error('done ,rest......4')
-                self.get_logger().error('done ,rest......5')
-
-                #only case that requires another action request
-                #send another action request to merge map and find closest merged_f_pt 
-
+            # if self.current_target_pos_ == None:
+            #     self.get_logger().error('finish local_frontiers, done for current robot')
+            #     self.setRobotState(self.e_util.FINISH_TASK)
+            # else:
+            #     self.previous_state_ = self.e_util.CHECK_ENVIRONMENT
+            #     self.setRobotState(self.e_util.GOING_TO_TARGET)
         # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
         # self.get_logger().warn('$ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ $ ')
         self.get_logger().error('EXIT CHECK_ENVIRONMENT_THREAD, next target:{},{}'.format(self.next_target_pos_.position.x, self.next_target_pos_.position.y))

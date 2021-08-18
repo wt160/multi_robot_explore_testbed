@@ -1,7 +1,7 @@
-multi_explore_simple_node_tb0:
+robot_track_publisher_tb0:
   ros__parameters:
     robot_name: "tb0" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1","tb2"]
+    peer_list: ["tb0", "tb1"]
     tb0_init_offset: [0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -10,10 +10,10 @@ multi_explore_simple_node_tb0:
     simulation_mode: True  
     pid: 0
 
-multi_explore_simple_node_tb1:
+robot_track_publisher_tb1:
   ros__parameters:
     robot_name: "tb1" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1","tb2"]
+    peer_list: ["tb0", "tb1"]
     tb0_init_offset: [0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -21,10 +21,9 @@ multi_explore_simple_node_tb1:
     simulation_mode: True  
     pid: 1
 
-multi_explore_simple_node_tb2:
+robot_track_publisher_tb2:
   ros__parameters:
     robot_name: "tb2" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
-    peer_list: ["tb0", "tb1", "tb2"]
     tb0_init_offset: [0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb1_init_offset: [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
     tb2_init_offset: [0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -32,7 +31,7 @@ multi_explore_simple_node_tb2:
     simulation_mode: True  
     pid: 2
 
-multi_explore_simple_node_tb3:
+robot_track_publisher_tb3:
   ros__parameters:
     robot_name: "tb3" #not used if simulation_mode == True, only used for real robot case, stores the unique robot name for each robot machine
     tb0_init_offset: [0.0, 3.0, 0.0, 0.0, 0.0, 0.0, 1.0]

@@ -25,10 +25,12 @@
 
         double offset_x = map->info.origin.position.x;    // offset_x: the coordinate value x of the bottom left origin in the map frame
         double offset_y = map->info.origin.position.y;    // offset_y: the coordinate value y of the bottom left origin in the map frame
-        int input_x_cell, input_y_cell;
+        int input_x_cell, input_y_cell, origin_x_cell, origin_y_cell;
         //std::cout<<"offset_x:"<<offset_x<<", resolution:"<<map->info.resolution<<"robot_pose_:"<<robot_pose_.position.x<<std::endl;
         input_x_cell = (int)((robot_pose_.position.x - offset_x) / map->info.resolution);
         input_y_cell = (int)((robot_pose_.position.y - offset_y) / map->info.resolution); 
+        origin_x_cell = input_x_cell;
+        origin_y_cell = input_y_cell;
         //std::cout<<"input_x_cell:"<<input_x_cell<<std::endl;
         //check whether current pose is free
         if(!e_util_.isCellFree(map, input_x_cell, input_y_cell)){
@@ -45,7 +47,7 @@
         //std::cout<<"input_x_cell:"<<input_x_cell<<std::endl;
 
         //BFS to find free cell that has unknown neighbor
-       
+
         int dw = map->info.width;
 
         std::queue<std::tuple<int, int, int>> queue;
@@ -69,7 +71,7 @@
                 if(is_explored_frontier_map.find(curr_cell_x + curr_cell_y* dw) == is_explored_frontier_map.end()){ 
                     //ROS_WARN_STREAM("frontier: "<<curr_cell.first<<","<<curr_cell.second);
                     vector<pair<int, int>> frontier_connects = findConnectedFrontiers(std::make_pair(curr_cell_x, curr_cell_y), map);
-                    //std::cout<<"frontier:"<<curr_cell_x<<","<<curr_cell_y<<", frontier_connect size:"<<frontier_connects.size()<<std::endl;
+                    std::cout<<"frontier:"<<curr_cell_x<<","<<curr_cell_y<<", frontier_connect size:"<<frontier_connects.size()<<std::endl;
 
 
                     vector<std::tuple<int, int, int>> frontier_connects_with_rank;
@@ -86,7 +88,7 @@
                 continue;
             }
 
-            if(std::abs(curr_cell_x - input_x_cell) > window_size_ || std::abs(curr_cell_y - input_y_cell) > window_size_){
+            if(std::abs(curr_cell_x - origin_x_cell) > window_size_ || std::abs(curr_cell_y - origin_y_cell) > window_size_){
                 continue;
             }
 
@@ -139,3 +141,4 @@
         }
         return frontier_connects;
     }  /* findConnectedFrontiers  */
+

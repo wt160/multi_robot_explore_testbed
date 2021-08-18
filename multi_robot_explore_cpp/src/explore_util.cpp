@@ -8,10 +8,10 @@ ExploreUtil::ExploreUtil(){
     for(int i = 1; i < dist_limit_; i++){
         vector<pair<int, int>> circle;
         double degree_increment = 360.0 / (2 * 3.14159 * i);
-        for(int j = 0; j < (int)360.0/degree_increment; j+= 3){
+        for(int j = 0; j < round(360.0/degree_increment); j+= 3){
             double rad = j * degree_increment / 180.0 * 3.14159;
-            int x = (int)cos(rad) * i;
-            int y = (int)sin(rad) * i;
+            int x = round(cos(rad) * i);
+            int y = round(sin(rad) * i);
             circle.push_back(make_pair(x, y));
         }
         center_to_circle_map_[i] = circle;
@@ -21,7 +21,7 @@ ExploreUtil::ExploreUtil(){
 }
 
 bool ExploreUtil::isCellObs(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int x_cell, int y_cell){
-    int idx = (int)(y_cell * map->info.width + x_cell);
+    int idx = round(y_cell * map->info.width + x_cell);
     if(idx >= map->data.size() || idx < 0)
         return true;
     
@@ -92,8 +92,8 @@ std::pair<int, int> ExploreUtil::getFreeNeighborRandom(std::pair<int, int> cell,
     while(condition && trial_num < get_free_neighbor_trial_limit_){
         r = (max_radius - min_radius)*dist(mt) + min_radius;
         theta = dist(mt)*2*3.14159;
-        neigh.first = cell.first + (int)(r*cos(theta));
-        neigh.second = cell.second + (int)(r * sin(theta));
+        neigh.first = cell.first + round(r*cos(theta));
+        neigh.second = cell.second + round(r * sin(theta));
 
         trial_num ++;
         // std::cout<<"cell:"<<cell.first<<","<<cell.second<<std::endl;
@@ -122,7 +122,7 @@ bool ExploreUtil::checkDirectLineCrossObs(std::pair<int, int> start, std::pair<i
 
     bool is_line_cross_obs = false;
     while(std::abs(curr_x - end.first) > 1 || std::abs(curr_y - end.second) > 1){
-        if(isCellObs(map, (int)curr_x, (int)curr_y)){
+        if(isCellObs(map, round(curr_x), round(curr_y))){
             is_line_cross_obs = true;
             // std::cout<<"line cross obs"<<std::endl;
             break;
@@ -141,17 +141,18 @@ bool ExploreUtil::isFrontier(nav_msgs::msg::OccupancyGrid::SharedPtr & map, int 
     dh = map->info.height;
     //map value == 0 : unknown cell
     int size = map->data.size();
+    int thres = 80;
 
     if(x + y*dw < size && x + y*dw >= 0 && map->data.at(x + y*dw) != -1) return false;
 
-    if(x != 0 && x - 1 + y*dw < size && x - 1 + y*dw >= 0 && map->data.at(x - 1 + y*dw) <50 && map->data.at(x - 1 + y*dw) >= 0) return true;
-    if(y != 0 && x + (y-1)*dw < size && x + (y-1)*dw >= 0 && map->data.at(x  + (y-1)*dw) < 50 && map->data.at(x  + (y-1)*dw) >= 0) return true;
-    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && x -1 + (y-1)*dw >= 0 && map->data.at(x - 1 + (y-1)*dw) <50 && map->data.at(x - 1 + (y-1)*dw) >= 0) return true;
-    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && x + 1 + (y-1)*dw >= 0 && map->data.at(x + 1 + (y-1)*dw) < 50 && map->data.at(x + 1 + (y-1)*dw) >= 0) return true;
-    if(x != dw - 1 && x + 1 + y*dw < size && x + 1 + y*dw >= 0 && map->data.at(x + 1 + (y)*dw) < 50 && map->data.at(x + 1 + (y)*dw) >= 0)  return true;
-    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && x-1 + (y+1)*dw >= 0 &&  map->data.at(x - 1 + (y+1)*dw) < 50 && map->data.at(x - 1 + (y+1)*dw) >= 0) return true;
-    if( y != dh - 1 && x + (y+1)*dw < size && x + (y+1)*dw >= 0 && map->data.at(x  + (y+1)*dw) < 50 && map->data.at(x  + (y+1)*dw) >= 0) return true;
-    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size && x + 1 + (y+1)*dw >= 0 &&  map->data.at(x + 1 + (y+1)*dw) < 50 && map->data.at(x + 1 + (y+1)*dw) >= 0)  return true;
+    if(x != 0 && x - 1 + y*dw < size && x - 1 + y*dw >= 0 && map->data.at(x - 1 + y*dw) <thres && map->data.at(x - 1 + y*dw) >= 0) return true;
+    if(y != 0 && x + (y-1)*dw < size && x + (y-1)*dw >= 0 && map->data.at(x  + (y-1)*dw) < thres && map->data.at(x  + (y-1)*dw) >= 0) return true;
+    if(x != 0 && y != 0 && x -1 + (y-1)*dw < size && x -1 + (y-1)*dw >= 0 && map->data.at(x - 1 + (y-1)*dw) <thres && map->data.at(x - 1 + (y-1)*dw) >= 0) return true;
+    if(x != dw - 1 && y != 0 && x + 1 + (y-1)*dw < size && x + 1 + (y-1)*dw >= 0 && map->data.at(x + 1 + (y-1)*dw) < thres && map->data.at(x + 1 + (y-1)*dw) >= 0) return true;
+    if(x != dw - 1 && x + 1 + y*dw < size && x + 1 + y*dw >= 0 && map->data.at(x + 1 + (y)*dw) < thres && map->data.at(x + 1 + (y)*dw) >= 0)  return true;
+    if(x !=0 && y != dh - 1 && x-1 + (y+1)*dw < size && x-1 + (y+1)*dw >= 0 &&  map->data.at(x - 1 + (y+1)*dw) < thres && map->data.at(x - 1 + (y+1)*dw) >= 0) return true;
+    if( y != dh - 1 && x + (y+1)*dw < size && x + (y+1)*dw >= 0 && map->data.at(x  + (y+1)*dw) < thres && map->data.at(x  + (y+1)*dw) >= 0) return true;
+    if(x != dw - 1 && y != dh - 1 && x + 1 + (y+1)*dw < size && x + 1 + (y+1)*dw >= 0 &&  map->data.at(x + 1 + (y+1)*dw) < thres && map->data.at(x + 1 + (y+1)*dw) >= 0)  return true;
     
     return false;
 }
@@ -238,8 +239,8 @@ bool ExploreUtil::isFrontierWithinWindowOrObs(vector<pair<double, double>>& f_co
     bool is_within_obs = true;
     for(int f = 0; f < f_connect.size(); f ++){
         pair<int, int> f_cell;
-        f_cell.first = (int)((f_connect[f].first - map->info.origin.position.x) / map->info.resolution);
-        f_cell.second = (int)((f_connect[f].second - map->info.origin.position.y) / map->info.resolution);
+        f_cell.first = round((f_connect[f].first - map->info.origin.position.x) / map->info.resolution);
+        f_cell.second = round((f_connect[f].second - map->info.origin.position.y) / map->info.resolution);
 
         if(covered_set.find(f_cell) != covered_set.end()){
             is_within_window = true;
@@ -268,7 +269,7 @@ pair<pair<double, double>, pair<double, double>> ExploreUtil::getObservePtForFro
     pair<int, int> max_cell = make_pair(RETURN_NONE_VALUE, RETURN_NONE_VALUE);
     for(int i = 0; i < f_connect.size(); i += 2){
         pair<double, double> pt = f_connect[i];
-        pair<int, int> pt_cell = make_pair((int)(pt.first - map->info.origin.position.x) / map->info.resolution, (int)(pt.second - map->info.origin.position.y) / map->info.resolution);
+        pair<int, int> pt_cell = make_pair(round((pt.first - map->info.origin.position.x) / map->info.resolution), round((pt.second - map->info.origin.position.y) / map->info.resolution));
         int dist = getShortestDistFromPtToObs(pt_cell, map);
         if(dist > max_dist){
             max_dist = dist;
@@ -294,7 +295,7 @@ int ExploreUtil::getShortestDistFromPtToObs(pair<int, int> cell, nav_msgs::msg::
             pair<int, int> cell_pt;
             cell_pt.first = cell.first + pt.first;
             cell_pt.second = cell.second + pt.second;
-            int idx = (int)(cell_pt.second * map->info.width + cell_pt.first);
+            int idx = round(cell_pt.second * map->info.width + cell_pt.first);
             if(idx > map->data.size() - 1){
                 continue;
             }else{
@@ -313,8 +314,8 @@ bool ExploreUtil::checkPtRegionFree(nav_msgs::msg::OccupancyGrid::SharedPtr& map
     double resolution = map->info.resolution;
     double offset_x = map->info.origin.position.x;
     double offset_y = map->info.origin.position.y;
-    int local_cell_x = (int)((local_pt.first - offset_x) / resolution);
-    int local_cell_y = (int)((local_pt.second - offset_y) / resolution);
+    int local_cell_x = round((local_pt.first - offset_x) / resolution);
+    int local_cell_y = round((local_pt.second - offset_y) / resolution);
     bool is_region_free = true;
     for(int x = local_cell_x - region_cell_radius; x < local_cell_x + region_cell_radius; x++){
         for(int y = local_cell_y - region_cell_radius; y < local_cell_y + region_cell_radius; y++){
@@ -406,4 +407,38 @@ void ExploreUtil::print_bytes(std::ostream &stream, const int8_t *data, size_t d
         }
     }
     stream << std::endl;
+}
+
+void ExploreUtil::getFrontiersDebugMap(vector<vector<pair<double, double>>> frontiers, nav_msgs::msg::OccupancyGrid::SharedPtr& output_map, int width, int height, double resolution, double origin_x, double origin_y){
+    output_map->info.resolution = resolution;
+    output_map->info.width = width;
+    output_map->info.height = height;
+    output_map->info.origin.position.x = origin_x;
+    output_map->info.origin.position.y = origin_y;
+
+    output_map->data.resize(width * height, -1);
+    //std::cout<<"getFrontiersDebugMap: frontiers size:"<<frontiers.size()<<std::endl;
+    for(auto f : frontiers){
+        //std::cout<<"f size:"<<f.size()<<std::endl;
+        for(auto f_pt: f){
+            //std::cout<<"(f_pt):"<<f_pt.first<<","<<f_pt.second<<std::endl;
+            int local_cell_x = round((f_pt.first - origin_x) / resolution);
+            int local_cell_y = round((f_pt.second - origin_y) / resolution);
+            //std::cout<<"(x,y):"<<local_cell_x<<","<<local_cell_y<<std::endl;
+            output_map->data[local_cell_y*width + local_cell_x] = 0;
+        }
+    }
+}
+
+multimap<double, pair<double, double>> ExploreUtil::invertMap(map<pair<double, double>, double> & mymap)
+{
+	multimap<double, pair<double, double>> multiMap;
+
+	map<pair<double, double>, double>::iterator it;
+	for (it=mymap.begin(); it!=mymap.end(); it++) 
+	{
+		multiMap.insert(make_pair(it->second, it->first));
+	}
+
+	return multiMap;
 }

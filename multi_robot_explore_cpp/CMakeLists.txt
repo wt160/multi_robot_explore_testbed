@@ -57,11 +57,11 @@ target_include_directories(group_coordinator_node PRIVATE
   $<INSTALL_INTERFACE:include>)
 
 
-add_executable(wfd_action_server_node src/wfd_action_server_node.cpp src/explore_util.cpp src/wfd_detector.cpp )
-  ament_target_dependencies(wfd_action_server_node
+add_executable(wfd_service_server_node src/wfd_service_server_node.cpp src/explore_util.cpp src/wfd_detector.cpp )
+  ament_target_dependencies(wfd_service_server_node
     rclcpp rclcpp_action multi_robot_interfaces nav2_msgs std_msgs tf2_ros ZLIB visualization_msgs)
   
-target_include_directories(wfd_action_server_node PRIVATE
+target_include_directories(wfd_service_server_node PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>)
 
@@ -70,7 +70,7 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME})
 
 install(TARGETS
-wfd_action_server_node
+wfd_service_server_node
   DESTINATION lib/${PROJECT_NAME})
 
 

@@ -84,6 +84,9 @@ class ExploreUtil{
         void add_string_to_vector(std::vector<int8_t> &uncompressed_data,
                           const int8_t *my_string);
         void print_bytes(std::ostream &stream, const int8_t *data, size_t data_length, bool format = true);
+        void getFrontiersDebugMap(vector<vector<pair<double, double>>> frontiers, nav_msgs::msg::OccupancyGrid::SharedPtr& output_map, int width, int height, double resolution, double origin_x, double origin_y);
+        multimap<double, pair<double, double>> invertMap(map<pair<double, double>, double> & mymap);
+
     private:
         int get_free_neighbor_trial_limit_;
         int total_robot_num_;

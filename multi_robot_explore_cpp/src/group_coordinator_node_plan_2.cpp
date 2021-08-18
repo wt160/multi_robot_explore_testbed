@@ -254,6 +254,10 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
         double biggest_dist_to_closest_track = 10000000000.0;
         pair<double, double> furthest_f_pt_to_tracks = make_pair(RETURN_NONE_VALUE, RETURN_NONE_VALUE);
         
+        map<pair<double, double>, double> window_f_pt_dist_map;
+        map<pair<double, double>, double> local_f_pt_dist_map;
+        multimap<double, pair<double, double>> ordered_window_f_pt_dist_map;
+
         //starting to search in the window_frontiers
         if(window_frontiers_.size() > 0){
 
@@ -302,7 +306,31 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
             small_dist_to_tracks_list.reserve(f_pt_world_frame_list.size());
             if(f_pt_world_frame_list.size() != 0){
 
+                std::cout<<"window_f_pt_world_frame_list size:"<<f_pt_world_frame_list.size()<<std::endl;
+                for(int f_index = 0; f_index < f_pt_world_frame_list.size(); f_index ++){
+                    pair<double, double> f_pt = f_pt_world_frame_list[f_index];
+                    double dist = ((current_robot_pose_world_frame.position.x - f_pt.first)*(current_robot_pose_world_frame.position.x - f_pt.first) + (current_robot_pose_world_frame.position.y - f_pt.second)*(current_robot_pose_world_frame.position.y - f_pt.second));
+                    window_f_pt_dist_map[f_pt] = dist;
 
+                }
+                ordered_window_f_pt_dist_map = e_util_.invertMap(window_f_pt_dist_map);
+                multimap<double, pair<double, double>>::iterator ordered_it;
+                for(ordered_it = ordered_window_f_pt_dist_map.begin(); ordered_it != ordered_window_f_pt_dist_map.end(); ordered_it ++)
+                {
+                    //sort from closest window_f_pt to furthest window_f_pt
+                    pair<double, double> current_pt = ordered_it->second;
+                    
+                    double smallest_dist = 1000000000.0;
+                    for(geometry_msgs::msg::Point t : track_list){
+                        double dist = (t.x - current_pt.first)*(t.x - current_pt.first) + (t.y - current_pt.second)*(t.y - current_pt.second);
+                        // std::cout<<"dist:"<<dist<<std::endl;
+                        if(dist < smallest_dist){
+                            smallest_dist = dist;
+                        }
+                    }
+
+
+                }
 
 
                 std::cout<<"window_f_pt_world_frame_list size:"<<f_pt_world_frame_list.size()<<std::endl;
@@ -330,12 +358,15 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                 
                 biggest_dist_to_closest_track = small_dist_to_tracks_list[furthest_f_pt_to_tracks_index];
                 std::cout<<"biggest_dist_to_closest_track:"<<biggest_dist_to_closest_track<<std::endl;
+                /////////////////////////////////////////////////
+                ///////        the next target       ////////////
                 furthest_f_pt_to_tracks = f_pt_world_frame_list[furthest_f_pt_to_tracks_index];
+                /////////////////////////////////////////////////
                 pair<double, double> furthest_frontier_pt = frontier_pt_world_frame_list[furthest_f_pt_to_tracks_index];
                 geometry_msgs::msg::Point robot_target_start, robot_target_end;
-                robot_target_start.x = furthest_frontier_pt.first;
-                robot_target_start.y = furthest_frontier_pt.second;
-                robot_target_end.x = furthest_f_pt_to_tracks.first;
+                robot_target_start.x = furthest_frontier_pt.first;  
+                robot_target_start.y = furthest_frontier_pt.second; 
+                robot_target_end.x = furthest_f_pt_to_tracks.first; 
                 robot_target_end.y = furthest_f_pt_to_tracks.second;
 
                 publishRobotTargetMarker(robot_target_start, robot_target_end);
@@ -426,7 +457,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                         temp.y = pt.second;
                         check_pt_list.push_back(temp);
                     }
-                    std::cout<<"mode 3(all local_frontiers suspected covered)"<<std::endl;
+
                     result->check_pt_list = check_pt_list;
                     result->return_state = 3;
                     result->dist_to_f_list = dist_from_current_to_local_target;
@@ -456,7 +487,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
             }
         }else{
 
-            //biggest_dist_to_closest_track < 4.0*4.0 || f_pt_world_frame_list.size() == 0
+            //biggest_dist_to_closest_track > 4.0*4.0 || f_pt_world_frame_list.size() == 0
             pair<double, double> furthest_f_pt_local_frame = make_pair(furthest_f_pt_to_tracks.first - init_offset_dict_[robot_name_][0], furthest_f_pt_to_tracks.second - init_offset_dict_[robot_name_][1]);
             auto now = high_resolution_clock::now();
             double compute_secs = duration_cast<seconds>(now - compute_start_time).count();
@@ -579,7 +610,6 @@ void GroupCoordinator::publishRobotTargetMarker(geometry_msgs::msg::Point start,
 
 void GroupCoordinator::robotTrackCallback(const multi_robot_interfaces::msg::RobotTrack::SharedPtr msg){
     string peer_name = msg->robot_name.data;
-    RCLCPP_WARN(this->get_logger(), "get track from %s", peer_name.c_str());
     geometry_msgs::msg::Point track = msg->robot_track;
     if(peer_tracks_dict_.find(peer_name) == peer_tracks_dict_.end()){ 
         vector<geometry_msgs::msg::Point> track_list;
