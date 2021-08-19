@@ -37,7 +37,7 @@ class MultiExploreNode(Node):
     def __init__(self, robot_name, total_robot_num):
         super().__init__('multi_explore_simple_node_' + robot_name)
         self.DEBUG_ = True
-        self.total_robot_num_ = total_robot_num
+        self.total_robot_num_ = int(total_robot_num)
         self.para_group = ReentrantCallbackGroup()
         self.local_frontiers_ = []   #list of frontier, each is list of (double, double) in the local map frame
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
@@ -141,7 +141,7 @@ class MultiExploreNode(Node):
         i = 0
         while i < self.total_robot_num_:
             self.persistent_robot_peers_.append(param_robot_peers_[i])
-
+            i = i + 1
         print(self.persistent_robot_peers_)
         print(len(self.persistent_robot_peers_))
         self.e_util = ExploreUtil()
