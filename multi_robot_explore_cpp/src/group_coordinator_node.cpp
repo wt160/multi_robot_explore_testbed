@@ -164,13 +164,13 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
     current_robot_pose_world_frame.position.y += init_offset_dict_[robot_name_][1];
     
     
+    bool get_valid_closest_target_pt = false;   
     
     vector<double> target_pt = {RETURN_NONE_VALUE, RETURN_NONE_VALUE};
     if(window_frontiers_rank_.size() == 0){
         RCLCPP_ERROR(this->get_logger(), "window_frontiers_rank_.size() == 0");
     
     }else{
-        bool get_valid_closest_target_pt = false;
         while(!get_valid_closest_target_pt){ 
             int closest_rank_index = 0;
             auto closest_rank_iterator = std::min_element(std::begin(window_frontiers_rank_), std::end(window_frontiers_rank_));
@@ -222,7 +222,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
     || chosen_last_failed_target_frontier){
         vector<geometry_msgs::msg::Point> peer_pose_world_frame_list;
         vector<geometry_msgs::msg::Point> track_list;
-        if(peer_tracks_dict_.size() == 0){
+        if(peer_tracks_dict_.size() == 0 || (peer_tracks_dict_.size() == 1 && peer_tracks_dict_.find(robot_name_) != peer_tracks_dict_.end()) ){
             //in case something is wrong, and didn't get robot_track from messages
             geometry_msgs::msg::Pose none_pose;
             none_pose.position.x = FAIL_NONE_VALUE;
@@ -230,7 +230,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
             curr_target_pose_local_frame.position.x = target_pt[0];
             curr_target_pose_local_frame.position.y = target_pt[1];
 
-            RCLCPP_WARN(this->get_logger(), "no peer tracks received!!!!");
+            RCLCPP_WARN(this->get_logger(), "no peer,GO CLOSEST");
             result->current_target_pose = curr_target_pose_local_frame;
             result->return_state = 1;
             goal_handle->succeed(result);
