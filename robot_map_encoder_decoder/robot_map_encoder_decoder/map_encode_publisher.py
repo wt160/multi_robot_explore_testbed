@@ -26,7 +26,22 @@ class MapEncoderPublisher(Node):
         super().__init__('robot_map_encoder_' + robot_name)
         self.compressed_map_publisher_ = self.create_publisher(CompressMap, robot_name + '/compressed_map', 10)
         self.robot_name = robot_name
+        self.compressed_window_f_publisher_ = self.create_publisher(CompressMap, robot_name + '/compressed_window_f', 10)
+        self.compressed_local_f_publisher_ = self.create_publisher(CompressMap, robot_name + '/compressed_local_f', 10)
 
+        self.raw_window_f_sub_ = self.create_subscription(
+               OccupancyGrid,
+               self.robot_name + '/window_frontiers_debug',
+               self.rawWindowFCallback,
+               10)
+        self.raw_window_f_sub_
+
+        self.raw_local_f_sub_ = self.create_subscription(
+                OccupancyGrid,
+                self.robot_name + '/local_frontiers_debug',
+                self.rawLocalFCallback,
+                10)
+        self.raw_local_f_sub_
         # self.navigation_map_pub_ = self.create_publisher(OccupancyGrid, 'robot_map', 10)
         self.raw_map_sub_ = self.create_subscription(
             OccupancyGrid,
@@ -35,10 +50,38 @@ class MapEncoderPublisher(Node):
             10)
         self.raw_map_sub_  # prevent unused variable warning
 
+    def rawWindowFCallback(self, msg):
 
-   
+        map_bytes = pickle.dumps(msg)
+        # self.get_logger().warn('before compressed map size:{}'.format(len(local_map_bytes)))
+        compressed_map_bytes = lzma.compress(map_bytes)
+        # self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
+        # print(compressed_local_map_bytes)
 
-    
+        # response.map_compress = []
+        # for i in range(len(compressed_local_map_bytes)):
+        #     response.map_compress.append(compressed_local_map_bytes[i])
+
+        compress_map_msg = CompressMap()
+        compress_map_msg.map_compress = list(compressed_map_bytes)
+        self.compressed_window_f_publisher_.publish(compress_map_msg)
+
+    def rawLocalFCallback(self, msg):
+
+        map_bytes = pickle.dumps(msg)
+        # self.get_logger().warn('before compressed map size:{}'.format(len(local_map_bytes)))
+        compressed_map_bytes = lzma.compress(map_bytes)
+        # self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
+        # print(compressed_local_map_bytes)
+
+        # response.map_compress = []
+        # for i in range(len(compressed_local_map_bytes)):
+        #     response.map_compress.append(compressed_local_map_bytes[i])
+
+        compress_map_msg = CompressMap()
+        compress_map_msg.map_compress = list(compressed_map_bytes)
+        self.compressed_local_f_publisher_.publish(compress_map_msg)
+
 
 
     def rawMapCallback(self, msg):
@@ -51,7 +94,7 @@ class MapEncoderPublisher(Node):
         compressed_map_bytes = lzma.compress(map_bytes)
         # self.get_logger().warn('after compressed map size:{}'.format(len(compressed_local_map_bytes)))
         # print(compressed_local_map_bytes)
-        
+
         # response.map_compress = []
         # for i in range(len(compressed_local_map_bytes)):
         #     response.map_compress.append(compressed_local_map_bytes[i])
@@ -73,7 +116,7 @@ def main(args=None):
     robot_name = None
 
     robot_name = sys.argv[1]
-    
+
 
 
     robot_map_encoder = MapEncoderPublisher(robot_name)
