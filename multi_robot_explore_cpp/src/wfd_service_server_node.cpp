@@ -69,7 +69,7 @@ void WfdServiceServerNode::handle_service_request(const std::shared_ptr<WfdServi
 
     vector<vector<pair<double, double>>> window_frontiers;
     vector<int> window_frontiers_rank;
-    RCLCPP_INFO(this->get_logger(), "Executing goal");
+    RCLCPP_INFO(this->get_logger(), "WFD start!");
     rclcpp::Rate loop_rate(1);
     // const auto goal = goal_handle->get_goal();
     // auto feedback = std::make_shared<WfdAction::Feedback>();
@@ -105,24 +105,24 @@ void WfdServiceServerNode::handle_service_request(const std::shared_ptr<WfdServi
     float origin_x = local_inflated_map_->info.origin.position.x;
     float origin_y = local_inflated_map_->info.origin.position.y;
 
-    RCLCPP_ERROR(this->get_logger(), "origin_x:%f", origin_x);
+    //RCLCPP_ERROR(this->get_logger(), "origin_x:%f", origin_x);
     vector<Frontier> window_frontiers_msg;
     if(local_inflated_map_->data.size() == 0){
         RCLCPP_ERROR(this->get_logger(), "(updateUsingWindowWFD)no local_inflated_map_ available");
     }
 
-    std::cout<<"current_pose:"<<current_robot_pose_local_frame_.position.x<<","<<current_robot_pose_local_frame_.position.y<<std::endl;
+    //std::cout<<"current_pose:"<<current_robot_pose_local_frame_.position.x<<","<<current_robot_pose_local_frame_.position.y<<std::endl;
     WindowWFD wfd(current_robot_pose_local_frame_, 260);
     vector<vector<std::tuple<int, int, int>>> frontier_list;
     std::set<pair<int, int>> covered_set;      
     wfd.getWindowFrontiers(local_inflated_map_, frontier_list, covered_set);
 
-    std::cout<<"frontier_list size:"<<frontier_list.size()<<std::endl;
+    //std::cout<<"frontier_list size:"<<frontier_list.size()<<std::endl;
     for(int f = 0; f < frontier_list.size(); f ++){
         Frontier f_msg;
         vector<tuple<int, int, int>> f_connect_cell = frontier_list[f];
         vector<pair<double, double>> f_connect_float;
-        std::cout<<"f_connect_cell size:"<<f_connect_cell.size()<<std::endl;
+        //std::cout<<"f_connect_cell size:"<<f_connect_cell.size()<<std::endl;
         for(int fc = 0; fc < f_connect_cell.size(); fc++){
             float f_float_x = get<0>(f_connect_cell[fc]) * resolution + origin_x;
             float f_float_y = get<1>(f_connect_cell[fc]) * resolution + origin_y;
@@ -147,10 +147,10 @@ void WfdServiceServerNode::handle_service_request(const std::shared_ptr<WfdServi
     e_util_.getFrontiersDebugMap(window_frontiers, window_frontier_map, local_inflated_map_->info.width, local_inflated_map_->info.height, local_inflated_map_->info.resolution, local_inflated_map_->info.origin.position.x, local_inflated_map_->info.origin.position.y);
     updateLocalFrontiers(window_frontiers, window_frontiers_msg, wfd.getWindowSize(), current_robot_pose_local_frame_, covered_set);
     e_util_.getFrontiersDebugMap(local_frontiers_, local_frontier_map, local_inflated_map_->info.width, local_inflated_map_->info.height, local_inflated_map_->info.resolution, local_inflated_map_->info.origin.position.x, local_inflated_map_->info.origin.position.y);
-    std::cout<<"publish debug map"<<std::endl;
+    //std::cout<<"publish debug map"<<std::endl;
     window_frontier_publisher_->publish(*window_frontier_map);
     local_frontier_publisher_->publish(*local_frontier_map);
-    std::cout<<"after publish debug map"<<std::endl;
+    //std::cout<<"after publish debug map"<<std::endl;
 
     
     // Check if goal is done
@@ -160,7 +160,8 @@ void WfdServiceServerNode::handle_service_request(const std::shared_ptr<WfdServi
       response->local_frontiers = local_frontiers_msg_;
     //   result->sequence = sequence;
     //   goal_handle->succeed(result);
-      RCLCPP_INFO(this->get_logger(), "Goal Succeeded");
+      RCLCPP_INFO(this->get_logger(), "WFD end");
+      std::cout<<"w:"<<window_frontiers_msg.size()<<" l:"<<local_frontiers_msg_.size()<<std::endl;
     }
   }
 
