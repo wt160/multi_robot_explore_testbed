@@ -559,24 +559,24 @@ class MultiExploreNode(Node):
             self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             # self.getRobotCurrentPos()
             # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            is_thread_started = False
-            check_environment_thread = Thread(target=self.checkEnvironmentFunction)
-            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+            #is_thread_started = False
+            #check_environment_thread = Thread(target=self.checkEnvironmentFunction)
+            #while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
 
                 # self.get_logger().error('start checking environment...')
                 # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
-                self.getRobotCurrentPos()
-                current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+            #    self.getRobotCurrentPos()
+            #    current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
                 # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
                 # current_direct_length_square = 10.0
-                if current_direct_length_square < 2.0*2.0:
-                    if is_thread_started == False:
-                        check_environment_thread.start()
+            #    if current_direct_length_square < 2.0*2.0:
+            #        if is_thread_started == False:
+            #            check_environment_thread.start()
 
-                        is_thread_started = True
+            #            is_thread_started = True
                     # return
                     
-                pass
+            #    pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
@@ -617,15 +617,15 @@ class MultiExploreNode(Node):
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
-            if is_thread_started == True:
-                check_environment_thread.join()
-                self.current_target_pos_ = self.next_target_pos_
-                is_thread_started == False
-                self.setRobotState(self.e_util.GOING_TO_TARGET) 
+            #if is_thread_started == True:
+            #    check_environment_thread.join()
+            #    self.current_target_pos_ = self.next_target_pos_
+            #    is_thread_started == False
+            #    self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
 
-            # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
         elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
             self.get_logger().error('Enter CHECK_ENVIRONMENT')
             
