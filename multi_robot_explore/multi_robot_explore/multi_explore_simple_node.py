@@ -797,6 +797,10 @@ class MultiExploreNode(Node):
         status = future.result().status
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Goal succeeded!')
+            if result.current_target_pose ==None:
+                self.get_logger().warn('return None pose')
+            else:
+                self.get_logger().warn('x:{},y:{}'.format(result.current_target_pose.position.x, result.current_target_pose.position.y))
             self.group_action_result_pose_ = result.current_target_pose
             self.group_action_result_check_pt_list_ = result.check_pt_list 
             self.group_action_result_return_state_ = result.return_state 
