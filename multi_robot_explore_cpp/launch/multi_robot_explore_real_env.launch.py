@@ -7,16 +7,16 @@ from launch.substitutions import LaunchConfiguration
 
 def generate_launch_description():
     robot_name = LaunchConfiguration('robot_name', default="tb0")
-    total_robot_num = LaunchConfiguration('total_robot_num', default="2")
-    mode = LaunchConfiguration('mode', default="swarm_simulation")
-    multi_robot_swarm_simulation_param_file_name = 'param/multi_robot_swarm_simulation_params.yaml'
+    total_robot_num = LaunchConfiguration('total_robot_num', default="3")
+    mode = LaunchConfiguration('mode', default="real_robot")
+    multi_robot_swarm_simulation_param_file_name = 'param/group_coordinator_real_robot_params.yaml'
     multi_robot_swarm_simulation_param_dir = LaunchConfiguration(
         'params',
         default=os.path.join(
             get_package_share_directory('multi_robot_explore_cpp'),
             multi_robot_swarm_simulation_param_file_name))
 
-    wfd_service_param_file_name = 'param/wfd_service_params.yaml'
+    wfd_service_param_file_name = 'param/wfd_service_real_robot_params.yaml'
     wfd_service_param_dir = LaunchConfiguration(
         'params',
         default=os.path.join(

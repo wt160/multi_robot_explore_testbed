@@ -37,7 +37,7 @@ class MultiExploreNode(Node):
     def __init__(self, robot_name, total_robot_num):
         super().__init__('multi_explore_simple_node_' + robot_name)
         self.DEBUG_ = True
-        self.total_robot_num_ = total_robot_num
+        self.total_robot_num_ = int(total_robot_num)
         self.para_group = ReentrantCallbackGroup()
         self.local_frontiers_ = []   #list of frontier, each is list of (double, double) in the local map frame
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
@@ -141,7 +141,7 @@ class MultiExploreNode(Node):
         i = 0
         while i < self.total_robot_num_:
             self.persistent_robot_peers_.append(param_robot_peers_[i])
-
+            i = i + 1
         print(self.persistent_robot_peers_)
         print(len(self.persistent_robot_peers_))
         self.e_util = ExploreUtil()
@@ -559,24 +559,24 @@ class MultiExploreNode(Node):
             self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             # self.getRobotCurrentPos()
             # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            is_thread_started = False
-            check_environment_thread = Thread(target=self.checkEnvironmentFunction)
-            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+            #is_thread_started = False
+            #check_environment_thread = Thread(target=self.checkEnvironmentFunction)
+            #while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
 
                 # self.get_logger().error('start checking environment...')
                 # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
-                self.getRobotCurrentPos()
-                current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+            #    self.getRobotCurrentPos()
+            #    current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
                 # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
                 # current_direct_length_square = 10.0
-                if current_direct_length_square < 2.0*2.0:
-                    if is_thread_started == False:
-                        check_environment_thread.start()
+            #    if current_direct_length_square < 2.0*2.0:
+            #        if is_thread_started == False:
+            #            check_environment_thread.start()
 
-                        is_thread_started = True
+            #            is_thread_started = True
                     # return
                     
-                pass
+            #    pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
@@ -617,15 +617,15 @@ class MultiExploreNode(Node):
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
-            if is_thread_started == True:
-                check_environment_thread.join()
-                self.current_target_pos_ = self.next_target_pos_
-                is_thread_started == False
-                self.setRobotState(self.e_util.GOING_TO_TARGET) 
+            #if is_thread_started == True:
+            #    check_environment_thread.join()
+            #    self.current_target_pos_ = self.next_target_pos_
+            #    is_thread_started == False
+            #    self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
 
-            # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
         elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
             self.get_logger().error('Enter CHECK_ENVIRONMENT')
             
@@ -797,6 +797,10 @@ class MultiExploreNode(Node):
         status = future.result().status
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info('Goal succeeded!')
+            if result.current_target_pose ==None:
+                self.get_logger().warn('return None pose')
+            else:
+                self.get_logger().warn('x:{},y:{}'.format(result.current_target_pose.position.x, result.current_target_pose.position.y))
             self.group_action_result_pose_ = result.current_target_pose
             self.group_action_result_check_pt_list_ = result.check_pt_list 
             self.group_action_result_return_state_ = result.return_state 
