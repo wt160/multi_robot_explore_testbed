@@ -30,14 +30,14 @@ from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Point
 from multi_robot_interfaces.action import GroupCoordinator, WfdAction
 from multi_robot_interfaces.msg import Frontier
-from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress, GetPeerMapValueOnCoords, WfdService
+from multi_robot_interfaces.srv import GetLocalMap, GetLocalFrontierTargetPt, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress, GetPeerMapValueOnCoords, WfdService
 from robot_control_interface.robot_control_node import RobotControlInterface
 class MultiExploreNode(Node):
     
     def __init__(self, robot_name, total_robot_num):
         super().__init__('multi_explore_swarm_simulation_' + robot_name)
         self.DEBUG_ = True
-        self.total_robot_num_ = total_robot_num
+        self.total_robot_num_ = int(total_robot_num)
         self.para_group = ReentrantCallbackGroup()
         self.local_frontiers_ = []   #list of frontier, each is list of (double, double) in the local map frame
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
@@ -91,7 +91,8 @@ class MultiExploreNode(Node):
         # self.get_map_value_srv = self.create_service(GetPeerMapValueOnCoords, self.robot_name_ + '/get_map_value_on_coords', self.getMapValueOnCoordsCallback)
         
         self.get_map_value_client_map_ = dict()
-        
+        self.get_local_frontier_target_pt_client_map_ = dict()
+
         self.robot_pose_sub_ = self.create_subscription(
             Point,
             self.robot_name_ + '/robot_pose',
@@ -160,6 +161,7 @@ class MultiExploreNode(Node):
         i = 0
         while i < self.total_robot_num_:
             self.persistent_robot_peers_.append(param_robot_peers_[i])
+            i = i + 1
 
         print(self.persistent_robot_peers_)
         print(len(self.persistent_robot_peers_))
@@ -172,7 +174,7 @@ class MultiExploreNode(Node):
         for peer in self.persistent_robot_peers_:
             if peer != self.robot_name_:
                 self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords')
-
+                self.get_local_frontier_target_pt_client_map_[peer] = self.create_client(GetLocalFrontierTargetPt, peer + '/get_local_frontier_target_pt_service')
         # self.peer_interface_ = PeerInterfaceNode(self.robot_name_)
         self.tic_ = 0
 
@@ -195,6 +197,7 @@ class MultiExploreNode(Node):
         self.group_action_result_check_pt_list_ = None
         self.group_action_result_dist_to_f_list_ = None
         self.group_action_result_f_list_ = None
+        self.peer_track_list_ = None
 
     def setRobotState(self, state):
         self.current_state_ = state
@@ -530,6 +533,25 @@ class MultiExploreNode(Node):
                     self.current_target_pos_ = closest_window_f_pt
                 else:
                     all_local_f_covered_by_peers = True 
+
+                    #request local_frontiers target points from peers, find the one that is furthest from peer tracks 
+                    local_frontier_target_pt_list = self.send_get_local_frontiers_target_value_request()
+                    largest_dist = -1.0
+                    furthest_target_pt = Point()
+                    for target_pt in local_frontier_target_pt_list:
+                        min_dist = 10000000000
+                        for track in self.peer_track_list_:
+                            dist = (target_pt.x - track.x)*(target_pt.x - track.x) + (target_pt.y - track.y)*(target_pt.y - track.y)
+                            if dist < min_dist:
+                                min_dist = dist
+                        if min_dist > largest_dist:
+                            largest_dist = min_dist
+                            furthest_target_pt = target_pt
+                    target_pose = Pose()
+                    target_pose.position.x = furthest_target_pt.x
+                    target_pose.position.y = furthest_target_pt.y 
+                    self.current_target_pos_ = target_pose
+
                     #only case that requires another action request
                     #send another action request to merge map and find closest merged_f_pt 
 
@@ -608,6 +630,7 @@ class MultiExploreNode(Node):
             self.group_action_result_return_state_ = result.return_state 
             self.group_action_result_dist_to_f_list_ = result.dist_to_f_list
             self.group_action_result_f_list_ = result.f_list
+            self.peer_track_list_ = result.peer_track_list
             self.is_action_finished_ = True
         else:
             self.get_logger().error('Goal failed with status: {}'.format(status))
@@ -646,6 +669,23 @@ class MultiExploreNode(Node):
 
         return f_pt_index_to_peer_value_map
 
+    def send_get_local_frontiers_target_value_request(self):
+        local_frontier_target_pt_list = []
+        for peer in self.persistent_robot_peers_:
+            if peer != self.robot_name_:
+                while not self.get_local_frontier_target_pt_client_map_[peer].wait_for_service(timeout_sec=1.0):
+                    pass 
+                req = GetLocalFrontierTargetPt.Request()
+                self.get_logger().info('before')
+                res_future = self.get_local_frontier_target_pt_client_map_[peer].call_async(req)
+                self.get_logger().info('after')
+                while not res_future.done():
+                    pass
+                response = res_future.result()
+                target_pt_list = res.local_frontier_target_pt
+                local_frontier_target_pt_list.extend(target_pt_list)
+
+        return local_frontier_target_pt_list
 
     def send_wfd_action_goal(self):
         self.wfd_action_client.wait_for_server()

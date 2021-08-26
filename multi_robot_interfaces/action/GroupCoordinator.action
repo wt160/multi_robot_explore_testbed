@@ -11,4 +11,5 @@ int32 return_state
 geometry_msgs/Point[] check_pt_list
 float32[] dist_to_f_list
 geometry_msgs/Point[] f_list 
+geometry_msgs/Point[] peer_track_list
 ---

@@ -21,6 +21,7 @@
 #include "multi_robot_explore_cpp/map_frontier_merger.hpp"
 #include "multi_robot_interfaces/action/group_coordinator.hpp"
 #include "multi_robot_interfaces/srv/get_peer_map_value_on_coords.hpp" 
+#include "multi_robot_interfaces/srv/get_local_frontier_target_pt.hpp"
 #include "multi_robot_explore_cpp/get_map_value_node.hpp"
 
 using namespace std;
@@ -31,6 +32,8 @@ class GroupCoordinator: public rclcpp::Node{
         using GoalHandleNavigate = rclcpp_action::ClientGoalHandle<NavigateToPose>;
         using GroupCoordinatorAction = multi_robot_interfaces::action::GroupCoordinator;
         using GoalHandleGroupCoordinatorAction = rclcpp_action::ServerGoalHandle<GroupCoordinatorAction>;
+        using GetLocalFrontierTargetPtService = multi_robot_interfaces::srv::GetLocalFrontierTargetPt;
+
 
         GroupCoordinator(std::string robot_name, std::string mode);
 
@@ -52,7 +55,8 @@ class GroupCoordinator: public rclcpp::Node{
         rclcpp_action::CancelResponse handle_action_cancel(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
         void execute(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
         void handle_action_accepted(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle);
-
+        void getLocalFrontierTargetPtCallback(const std::shared_ptr<GetLocalFrontierTargetPtService::Request> request,
+          std::shared_ptr<GetLocalFrontierTargetPtService::Response> response);
 
 
         int navigate_to_pose_state_ = 0;
@@ -60,6 +64,8 @@ class GroupCoordinator: public rclcpp::Node{
         std::shared_ptr<GetMapValueNode> get_map_value_node_; 
 
     private:
+        std::string mode_;
+        rclcpp::Service<GetLocalFrontierTargetPtService>::SharedPtr get_local_frontier_target_pt_service_server_;
         map<string, rclcpp::callback_group::CallbackGroup::SharedPtr> callback_group_map_;
         rclcpp::callback_group::CallbackGroup::SharedPtr group_coordinator_callback_group_;
         map<string, rclcpp::Client<multi_robot_interfaces::srv::GetPeerMapValueOnCoords>::SharedPtr> get_map_value_client_dict_;
