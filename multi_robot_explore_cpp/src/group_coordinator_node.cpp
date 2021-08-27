@@ -614,11 +614,7 @@ void GroupCoordinator::publishRobotTargetMarker(geometry_msgs::msg::Point start,
 
 void GroupCoordinator::robotTrackCallback(const multi_robot_interfaces::msg::RobotTrack::SharedPtr msg){
     string peer_name = msg->robot_name.data;
-<<<<<<< HEAD
-    // RCLCPP_WARN(this->get_logger(), "get track from %s", peer_name.c_str());
-=======
     //RCLCPP_WARN(this->get_logger(), "get track from %s", peer_name.c_str());
->>>>>>> d3e00254216fe067fa438d75acd3ecf63f043303
     geometry_msgs::msg::Point track = msg->robot_track;
     if(peer_tracks_dict_.find(peer_name) == peer_tracks_dict_.end()){ 
         vector<geometry_msgs::msg::Point> track_list;
