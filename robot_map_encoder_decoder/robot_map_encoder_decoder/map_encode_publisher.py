@@ -45,7 +45,7 @@ class MapEncoderPublisher(Node):
         # self.navigation_map_pub_ = self.create_publisher(OccupancyGrid, 'robot_map', 10)
         self.raw_map_sub_ = self.create_subscription(
             OccupancyGrid,
-            self.robot_name + '/map',
+            self.robot_name + '/global_costmap/costmap',
             self.rawMapCallback,
             10)
         self.raw_map_sub_  # prevent unused variable warning

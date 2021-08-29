@@ -256,14 +256,19 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
             geometry_msgs::msg::Pose none_pose;
             none_pose.position.x = FAIL_NONE_VALUE;
             none_pose.position.y = FAIL_NONE_VALUE;
-            curr_target_pose_local_frame.position.x = target_pt[0];
+ 	    
+ 	    curr_target_pose_local_frame.position.x = target_pt[0];
             curr_target_pose_local_frame.position.y = target_pt[1];
 
-            RCLCPP_WARN(this->get_logger(), "no peer,GO CLOSEST");
-            result->current_target_pose = curr_target_pose_local_frame;
-            result->return_state = 1;
-            goal_handle->succeed(result);
-            return;
+            RCLCPP_WARN(this->get_logger(), "no peer,GO FURTHEST");
+	    geometry_msgs::msg::Point current_robot_pose_point;
+	    current_robot_pose_point.x = current_robot_pose_local_frame_.position.x + init_offset_dict_[robot_name_][0];
+	    current_robot_pose_point.y = current_robot_pose_local_frame_.position.y + init_offset_dict_[robot_name_][1];
+	    track_list.push_back(current_robot_pose_point); 
+            //result->current_target_pose = curr_target_pose_local_frame;
+            //result->return_state = 1;
+            //goal_handle->succeed(result);
+            //return;
         }else{
             for(auto peer_ite = peer_tracks_dict_.begin(); peer_ite != peer_tracks_dict_.end(); peer_ite ++){
                 if(peer_ite->first != robot_name_){
