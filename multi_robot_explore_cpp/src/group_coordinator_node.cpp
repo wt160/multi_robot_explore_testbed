@@ -345,7 +345,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
         
         //if window_frontiers are all explored by peers(possibly, need to be verified) or no window_frontiers are left(current robot went into a dead ending)
         std::cout<<"window_frontiers size: "<<f_pt_world_frame_list.size()<<std::endl;
-        if(biggest_dist_to_closest_track < 4.0*4.0 || f_pt_world_frame_list.size() == 0){
+        if(biggest_dist_to_closest_track < 2.0*2.0 || f_pt_world_frame_list.size() == 0){
             bool all_window_f_covered_by_peers = true;
             vector<int> uncovered_f_pt_index_list;
             
@@ -418,7 +418,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                 //local_frontier to peer's tracks are below the same threshold, we verify the local_frontiers using merged_map, go to the local_frontier that is not 
                 //covered and closest to robot's current pose
 
-                if(local_biggest_dist_to_closest_track < 4.0 * 4.0){
+                if(local_biggest_dist_to_closest_track < 2.0 * 2.0){
                     vector<geometry_msgs::msg::Point> check_pt_list;
                     for(auto pt: local_frontier_pt_world_frame_list){
                         geometry_msgs::msg::Point temp;

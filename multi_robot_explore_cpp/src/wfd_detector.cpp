@@ -71,7 +71,7 @@
                 if(is_explored_frontier_map.find(curr_cell_x + curr_cell_y* dw) == is_explored_frontier_map.end()){ 
                     //ROS_WARN_STREAM("frontier: "<<curr_cell.first<<","<<curr_cell.second);
                     vector<pair<int, int>> frontier_connects = findConnectedFrontiers(std::make_pair(curr_cell_x, curr_cell_y), map);
-                    std::cout<<"frontier:"<<curr_cell_x<<","<<curr_cell_y<<", frontier_connect size:"<<frontier_connects.size()<<std::endl;
+                    //std::cout<<"frontier:"<<curr_cell_x<<","<<curr_cell_y<<", frontier_connect size:"<<frontier_connects.size()<<std::endl;
 
 
                     vector<std::tuple<int, int, int>> frontier_connects_with_rank;
