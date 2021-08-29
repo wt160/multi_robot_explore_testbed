@@ -23,6 +23,9 @@ GroupCoordinator::GroupCoordinator(std::string robot_name, std::string mode)
         group_coordinator_callback_group_
     );
 
+    this->get_local_frontier_target_pt_service_server_ = this->create_service<GetLocalFrontierTargetPtService>(robot_name_ + "/get_local_frontier_target_pt_service", std::bind(&GroupCoordinator::getLocalFrontierTargetPtCallback, this, std::placeholders::_1, std::placeholders::_2));
+
+    mode_ = mode;
     if(mode == "real_robot"){
         target_search_min_ = 18;
         target_search_max_ = 28;
@@ -114,6 +117,32 @@ rclcpp_action::CancelResponse GroupCoordinator::handle_action_cancel(
     RCLCPP_INFO(this->get_logger(), "Received request to cancel goal");
     (void)goal_handle;
     return rclcpp_action::CancelResponse::ACCEPT;
+}
+
+
+
+
+void GroupCoordinator::getLocalFrontierTargetPtCallback(const std::shared_ptr<GetLocalFrontierTargetPtService::Request> request,
+          std::shared_ptr<GetLocalFrontierTargetPtService::Response> response)
+{
+    std::vector<geometry_msgs::msg::Point> local_frontier_target_pt_list;   
+    for(vector<pair<double, double>> f_local: local_frontiers_){
+        pair<pair<double, double>, pair<double, double>> local_f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_local, local_inflated_map_, target_search_min_, target_search_max_);
+    
+        geometry_msgs::msg::Point local_f_target_geometry_world_frame;
+        pair<double, double> local_f_target_pt = local_f_target_pt_and_frontier_pt.first;
+        
+
+
+
+        pair<double, double> local_f_target_pt_world_frame;
+        local_f_target_pt_world_frame.first = local_f_target_pt.first + init_offset_dict_[robot_name_][0];
+        local_f_target_pt_world_frame.second = local_f_target_pt.second + init_offset_dict_[robot_name_][1];
+        local_f_target_geometry_world_frame.x = local_f_target_pt_world_frame.first;
+        local_f_target_geometry_world_frame.y = local_f_target_pt_world_frame.second;
+        local_frontier_target_pt_list.push_back(local_f_target_geometry_world_frame);
+    }
+    response->local_frontier_target_pt = local_frontier_target_pt_list;
 }
 
 void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorAction> goal_handle)
@@ -426,6 +455,12 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                         temp.y = pt.second;
                         check_pt_list.push_back(temp);
                     }
+
+                    if(mode_ == "swarm_simulation")
+                    {
+                        result->peer_track_list = track_list;
+                    }
+
                     std::cout<<"mode 3(all local_frontiers suspected covered)"<<std::endl;
                     result->check_pt_list = check_pt_list;
                     result->return_state = 3;
