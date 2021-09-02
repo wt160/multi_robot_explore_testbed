@@ -126,20 +126,26 @@ void GroupCoordinator::getLocalFrontierTargetPtCallback(const std::shared_ptr<Ge
           std::shared_ptr<GetLocalFrontierTargetPtService::Response> response)
 {
     std::vector<geometry_msgs::msg::Point> local_frontier_target_pt_list;   
-    for(vector<pair<double, double>> f_local: local_frontiers_){
-        pair<pair<double, double>, pair<double, double>> local_f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_local, local_inflated_map_, target_search_min_, target_search_max_);
+    // for(vector<pair<double, double>> f_local: local_frontiers_){
+    //     pair<pair<double, double>, pair<double, double>> local_f_target_pt_and_frontier_pt = e_util_.getObservePtForFrontiers(f_local, local_inflated_map_, target_search_min_, target_search_max_);
     
-        geometry_msgs::msg::Point local_f_target_geometry_world_frame;
-        pair<double, double> local_f_target_pt = local_f_target_pt_and_frontier_pt.first;
+    //     geometry_msgs::msg::Point local_f_target_geometry_world_frame;
+    //     pair<double, double> local_f_target_pt = local_f_target_pt_and_frontier_pt.first;
         
 
 
 
-        pair<double, double> local_f_target_pt_world_frame;
-        local_f_target_pt_world_frame.first = local_f_target_pt.first + init_offset_dict_[robot_name_][0];
-        local_f_target_pt_world_frame.second = local_f_target_pt.second + init_offset_dict_[robot_name_][1];
-        local_f_target_geometry_world_frame.x = local_f_target_pt_world_frame.first;
-        local_f_target_geometry_world_frame.y = local_f_target_pt_world_frame.second;
+    //     pair<double, double> local_f_target_pt_world_frame;
+    //     local_f_target_pt_world_frame.first = local_f_target_pt.first + init_offset_dict_[robot_name_][0];
+    //     local_f_target_pt_world_frame.second = local_f_target_pt.second + init_offset_dict_[robot_name_][1];
+    //     local_f_target_geometry_world_frame.x = local_f_target_pt_world_frame.first;
+    //     local_f_target_geometry_world_frame.y = local_f_target_pt_world_frame.second;
+    //     local_frontier_target_pt_list.push_back(local_f_target_geometry_world_frame);
+    // }
+    for(pair<double, double> local_f_pt: local_f_pt_away_from_peer_track_world_frame_list_){
+        geometry_msgs::msg::Point local_f_target_geometry_world_frame;
+        local_f_target_geometry_world_frame.x = local_f_pt.first;
+        local_f_target_geometry_world_frame.y = local_f_pt.second;
         local_frontier_target_pt_list.push_back(local_f_target_geometry_world_frame);
     }
     response->local_frontier_target_pt = local_frontier_target_pt_list;
@@ -346,7 +352,7 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                         }
                     }
                     //key change
-                    // smallest_dist -= 0.6 * ((current_robot_pose_world_frame.position.x - f_pt.first)*(current_robot_pose_world_frame.position.x - f_pt.first) + (current_robot_pose_world_frame.position.y - f_pt.second)*(current_robot_pose_world_frame.position.y - f_pt.second));
+                    smallest_dist -= 0.9 * ((current_robot_pose_world_frame.position.x - f_pt.first)*(current_robot_pose_world_frame.position.x - f_pt.first) + (current_robot_pose_world_frame.position.y - f_pt.second)*(current_robot_pose_world_frame.position.y - f_pt.second));
                     small_dist_to_tracks_list.push_back(smallest_dist);
 
                 }
@@ -421,6 +427,8 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
             
             double furthest_dist = -1.0;
             vector<double> local_small_dist_to_tracks_list;
+            local_f_pt_away_from_peer_track_world_frame_list_.clear();
+
             if(local_f_pt_world_frame_list.size() != 0){
                 RCLCPP_WARN(this->get_logger(), "available local_frontiers point number:%d", local_f_pt_world_frame_list.size());
                 for(int f_index = 0; f_index < local_f_pt_world_frame_list.size(); f_index ++){
@@ -432,6 +440,9 @@ void GroupCoordinator::execute(const std::shared_ptr<GoalHandleGroupCoordinatorA
                             smallest_dist = dist;
                         }
                     
+                    }
+                    if(smallest_dist > 5.0*5.0){
+                        local_f_pt_away_from_peer_track_world_frame_list_.push_back(f_pt);
                     }
                     local_small_dist_to_tracks_list.push_back(smallest_dist); 
 

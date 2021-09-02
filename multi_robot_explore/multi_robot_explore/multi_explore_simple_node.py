@@ -327,7 +327,7 @@ class MultiExploreNode(Node):
         #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
         self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 5)
         #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
-        self.inflated_map_pub_.publish(self.local_map_)
+        self.inflated_map_pub_.publish(self.inflated_local_map_)
         self.local_map_callback_lock_ = False
         self.tic_ = self.tic_ + 1
         mutex.release()
@@ -577,6 +577,8 @@ class MultiExploreNode(Node):
                     # return
                     
             #    pass
+            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+                pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
             elif self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_FAILED:
