@@ -663,6 +663,7 @@ class MultiExploreNode(Node):
             elif self.group_action_result_return_state_ == 2:
                 #check window_frontier_pt, if 1), all window_f_pt covered, then go to the local_f_pt that is furthest from peers; 2) not all window_f_pt covered, 
                 # go to closest uncovered window_f_pt.
+                self.get_logger().warn('state 2')
                 all_window_f_covered_by_peers  =  True                      
                 f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_) 
 
@@ -700,7 +701,8 @@ class MultiExploreNode(Node):
 
             elif self.group_action_result_return_state_ == 3:
                 #check local_frontier_pt, if 1), all local_f_pt covered, then merge map, 2), not all local_f_pt covered, go to closest local_f_pt
-                all_local_f_covered_by_peers  =  True  
+                all_local_f_covered_by_peers  =  True
+                self.get_logger().warn('state 3')
                 f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_ )
                 
 
@@ -731,6 +733,8 @@ class MultiExploreNode(Node):
                     self.current_target_pos_ = closest_window_f_pt
                 else:
                     all_local_f_covered_by_peers = True 
+                    self.get_logger().warn('explored all local_frontiers, done')
+                    self.current_target_pos_ = None
                     #only case that requires another action request
                     #send another action request to merge map and find closest merged_f_pt 
 
@@ -833,9 +837,11 @@ class MultiExploreNode(Node):
                 req.query_pt_list = check_pt_list
                 self.get_logger().info('before')
                 res_future = self.get_map_value_client_map_[peer].call_async(req)
-
-                while not res_future.done():
+                start_time = time.time()
+                while not res_future.done() and time.time() - start_time <1.0:
                     pass
+                if res_future.done() == False:
+                    continue
                 res = res_future.result()
                 self.get_logger().info('after')
                 value_list_result = res.pt_value_list
