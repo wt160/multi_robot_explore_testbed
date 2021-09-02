@@ -31,13 +31,13 @@ from multi_robot_interfaces.action import GroupCoordinator, WfdAction
 from multi_robot_interfaces.msg import Frontier
 from multi_robot_interfaces.srv import GetLocalMap, GetLocalMapAndFrontier, SetRobotTargetPose, GetLocalMapAndFrontierCompress, GetPeerMapValueOnCoords, WfdService
 from robot_control_interface.robot_control_node import RobotControlInterface
-
+from visualization_msgs.msg import Marker, MarkerArray
 class MultiExploreNode(Node):
     
     def __init__(self, robot_name, total_robot_num):
-        super().__init__('multi_explore_simple_node_' + robot_name)
+        super().__init__('multi_explore_simple_test_navigation_node_' + robot_name)
         self.DEBUG_ = True
-        self.total_robot_num_ = total_robot_num
+        self.total_robot_num_ = int(total_robot_num)
         self.para_group = ReentrantCallbackGroup()
         self.local_frontiers_ = []   #list of frontier, each is list of (double, double) in the local map frame
         self.local_frontiers_msg_ = [] #list of multi_robot_interfaces.msg.Frontier
@@ -115,7 +115,9 @@ class MultiExploreNode(Node):
         self.debug_merge_map_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/merged_map_debug', 10)
         self.debug_frontier_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/frontier_map_debug', 10)
         self.inflated_map_pub_ = self.create_publisher(OccupancyGrid, self.robot_name_ + '/inflated_map_debug', 10)
-        
+        self.debug_window_f_text_pub_ = self.create_publisher(MarkerArray, self.robot_name_ + '/debug_window_f_text', 10)
+
+
         self.init_offset_dict_ = dict()
         self.init_offset_to_current_robot_dict_ = dict()
 
@@ -323,7 +325,7 @@ class MultiExploreNode(Node):
         #self.get_logger().warn('{}:before inflateMap'.format(self.tic_))
         self.inflated_local_map_ = self.e_util.inflateMap(self.local_map_, 5)
         #self.get_logger().warn('{}:after inflateMap'.format(self.tic_))
-        self.inflated_map_pub_.publish(self.local_map_)
+        self.inflated_map_pub_.publish(self.inflated_local_map_)
         self.local_map_callback_lock_ = False
         self.tic_ = self.tic_ + 1
         mutex.release()
@@ -555,22 +557,22 @@ class MultiExploreNode(Node):
             self.r_interface_.navigateToPoseFunction(self.current_target_pos_)
             # self.getRobotCurrentPos()
             # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            is_thread_started = False
-            check_environment_thread = Thread(target=self.checkEnvironmentFunction)
+            # is_thread_started = False
+            # check_environment_thread = Thread(target=self.checkEnvironmentFunction)
             while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
 
-                # self.get_logger().error('start checking environment...')
-                # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
-                self.getRobotCurrentPos()
-                current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-                # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
-                # current_direct_length_square = 10.0
-                if current_direct_length_square < 2.0*2.0:
-                    if is_thread_started == False:
-                        check_environment_thread.start()
+                # # self.get_logger().error('start checking environment...')
+                # # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+                # self.getRobotCurrentPos()
+                # current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+                # # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
+                # # current_direct_length_square = 10.0
+                # if current_direct_length_square < 2.0*2.0:
+                #     if is_thread_started == False:
+                #         check_environment_thread.start()
 
-                        is_thread_started = True
-                    # return
+                #         is_thread_started = True
+                #     # return
                     
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
@@ -613,11 +615,11 @@ class MultiExploreNode(Node):
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
-            if is_thread_started == True:
-                check_environment_thread.join()
-                self.current_target_pos_ = self.next_target_pos_
-                is_thread_started == False
-                self.setRobotState(self.e_util.GOING_TO_TARGET) 
+            # if is_thread_started == True:
+            #     check_environment_thread.join()
+            #     self.current_target_pos_ = self.next_target_pos_
+            #     is_thread_started == False
+            #     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
 
@@ -641,92 +643,121 @@ class MultiExploreNode(Node):
             self.window_frontiers_msg = wfd_response.window_frontiers  
             self.window_frontiers_rank = wfd_response.window_frontiers_rank
 
-            # self.window_frontiers, self.window_frontiers_msg, self.window_frontiers_rank = self.updateLocalFrontiersUsingWindowWFD()
-            # if self.window_frontiers == -1 or self.window_frontiers == -2:
-            #     self.get_logger().error('(update.CHECK_ENVIRONMENT) failed getting WindowFrontiers, check robot, something is wrong')
-            #     self.current_state_ = self.e_util.CHECK_ENVIRONMENT
-            # else:   
-                
 
-            self.send_group_coordinator_goal()
-            while self.is_action_finished_ != True:
-                pass
+            text_list = []
+            pose_list = []
+            target_pose_dict = dict()
+            for window_index, window_f in enumerate(self.window_frontiers_msg):
+                f_connect = []
+                for pt in window_f.frontier:
+                    f_connect.append((pt.point.x, pt.point.y))
+                    # print('f_connect append:{},{}'.format(pt.point.x, pt.point.y))
+
+                observe_pt_and_frontier_pt = self.e_util.getObservePtForFrontiers(f_connect, self.inflated_local_map_, 13, 18)
+                if observe_pt_and_frontier_pt == None:
+                    self.get_logger().error('window_f {} no target pt found!!!'.format(window_index))
+                    continue
+                observe_pt = observe_pt_and_frontier_pt[0]
+                observe_pose = Pose()
+                observe_pose.position.x = observe_pt[0]
+                observe_pose.position.y = observe_pt[1]
+
+
+                frontier_pt = observe_pt_and_frontier_pt[1]
+                text = str(window_index)
+                text_list.append(text)
+                pose_list.append(observe_pose)
+                target_pose_dict[window_index] = observe_pose   
+
+            text_marker_array = self.e_util.publishTextMarkerArray(self.robot_name_, text_list, pose_list, 0.2)
+            self.debug_window_f_text_pub_.publish(text_marker_array)
+
+            chosen_index = input('wait for user input for chosen window index')
+            chosen_index = int(chosen_index)
+
+            self.current_target_pos_ = target_pose_dict[chosen_index]
+
+
+
+            # self.send_group_coordinator_goal()
+            # while self.is_action_finished_ != True:
+            #     pass
             
-            if self.group_action_result_return_state_ == 1:
-                self.current_target_pos_ = self.group_action_result_pose_
-            elif self.group_action_result_return_state_ == 2:
-                #check window_frontier_pt, if 1), all window_f_pt covered, then go to the local_f_pt that is furthest from peers; 2) not all window_f_pt covered, 
-                # go to closest uncovered window_f_pt.
-                all_window_f_covered_by_peers  =  True                      
-                f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_) 
+            # if self.group_action_result_return_state_ == 1:
+            #     self.current_target_pos_ = self.group_action_result_pose_
+            # elif self.group_action_result_return_state_ == 2:
+            #     #check window_frontier_pt, if 1), all window_f_pt covered, then go to the local_f_pt that is furthest from peers; 2) not all window_f_pt covered, 
+            #     # go to closest uncovered window_f_pt.
+            #     all_window_f_covered_by_peers  =  True                      
+            #     f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_) 
 
 
-                uncovered_f_pt_index_list = []
-                for f_pt_index in f_pt_index_to_peer_value_map:
-                    is_covered = False
-                    for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                        if f_pt_value != -1 and f_pt_value < 80:
-                            is_covered = True
-                            break 
-                    if is_covered == False:
-                        uncovered_f_pt_index_list.append(f_pt_index)
+            #     uncovered_f_pt_index_list = []
+            #     for f_pt_index in f_pt_index_to_peer_value_map:
+            #         is_covered = False
+            #         for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
+            #             if f_pt_value != -1 and f_pt_value < 80:
+            #                 is_covered = True
+            #                 break 
+            #         if is_covered == False:
+            #             uncovered_f_pt_index_list.append(f_pt_index)
                 
-                if len(uncovered_f_pt_index_list) > 0:
-                    all_window_f_covered_by_peers = False 
-                    #go to closest uncovered window_f_pt
-                    closest_dist = 10000000
-                    closest_index = 0
-                    for index in range(len(self.group_action_result_dist_to_f_list_)):
-                        if index in uncovered_f_pt_index_list:
-                            if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                                closest_dist = self.group_action_result_dist_to_f_list_[index]
-                                closest_index = index
-                    closest_window_f_pt = Pose()
-                    closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                    closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                    self.current_target_pos_ = closest_window_f_pt
+            #     if len(uncovered_f_pt_index_list) > 0:
+            #         all_window_f_covered_by_peers = False 
+            #         #go to closest uncovered window_f_pt
+            #         closest_dist = 10000000
+            #         closest_index = 0
+            #         for index in range(len(self.group_action_result_dist_to_f_list_)):
+            #             if index in uncovered_f_pt_index_list:
+            #                 if self.group_action_result_dist_to_f_list_[index] < closest_dist:
+            #                     closest_dist = self.group_action_result_dist_to_f_list_[index]
+            #                     closest_index = index
+            #         closest_window_f_pt = Pose()
+            #         closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
+            #         closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
+            #         self.current_target_pos_ = closest_window_f_pt
 
 
-                else:
-                    all_window_f_covered_by_peers = True 
-                    #go to the furthest local_f_pt from peers
-                    self.current_target_pos_ = self.group_action_result_pose_
+            #     else:
+            #         all_window_f_covered_by_peers = True 
+            #         #go to the furthest local_f_pt from peers
+            #         self.current_target_pos_ = self.group_action_result_pose_
 
-            elif self.group_action_result_return_state_ == 3:
-                #check local_frontier_pt, if 1), all local_f_pt covered, then merge map, 2), not all local_f_pt covered, go to closest local_f_pt
-                all_local_f_covered_by_peers  =  True  
-                f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_ )
+            # elif self.group_action_result_return_state_ == 3:
+            #     #check local_frontier_pt, if 1), all local_f_pt covered, then merge map, 2), not all local_f_pt covered, go to closest local_f_pt
+            #     all_local_f_covered_by_peers  =  True  
+            #     f_pt_index_to_peer_value_map = self.send_get_map_values_request(self.group_action_result_check_pt_list_ )
                 
 
 
-                uncovered_f_pt_index_list = []
-                for f_pt_index in f_pt_index_to_peer_value_map:
-                    is_covered = False
-                    for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
-                        if f_pt_value != -1 and f_pt_value < 80:
-                            is_covered = True
-                            break 
-                    if is_covered == False:
-                        uncovered_f_pt_index_list.append(f_pt_index)
+            #     uncovered_f_pt_index_list = []
+            #     for f_pt_index in f_pt_index_to_peer_value_map:
+            #         is_covered = False
+            #         for f_pt_value in f_pt_index_to_peer_value_map[f_pt_index]:
+            #             if f_pt_value != -1 and f_pt_value < 80:
+            #                 is_covered = True
+            #                 break 
+            #         if is_covered == False:
+            #             uncovered_f_pt_index_list.append(f_pt_index)
                 
-                if len(uncovered_f_pt_index_list) > 0:
-                    all_local_f_covered_by_peers = False 
-                    #go to closest uncovered local_f_pt, doesn't another action request
-                    closest_dist = 10000000
-                    closest_index = 0
-                    for index in range(len(self.group_action_result_dist_to_f_list_)):
-                        if index in uncovered_f_pt_index_list:
-                            if self.group_action_result_dist_to_f_list_[index] < closest_dist:
-                                closest_dist = self.group_action_result_dist_to_f_list_[index]
-                                closest_index = index
-                    closest_window_f_pt = Pose()
-                    closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
-                    closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
-                    self.current_target_pos_ = closest_window_f_pt
-                else:
-                    all_local_f_covered_by_peers = True 
-                    #only case that requires another action request
-                    #send another action request to merge map and find closest merged_f_pt 
+            #     if len(uncovered_f_pt_index_list) > 0:
+            #         all_local_f_covered_by_peers = False 
+            #         #go to closest uncovered local_f_pt, doesn't another action request
+            #         closest_dist = 10000000
+            #         closest_index = 0
+            #         for index in range(len(self.group_action_result_dist_to_f_list_)):
+            #             if index in uncovered_f_pt_index_list:
+            #                 if self.group_action_result_dist_to_f_list_[index] < closest_dist:
+            #                     closest_dist = self.group_action_result_dist_to_f_list_[index]
+            #                     closest_index = index
+            #         closest_window_f_pt = Pose()
+            #         closest_window_f_pt.position.x = self.group_action_result_f_list_[closest_index].x
+            #         closest_window_f_pt.position.y = self.group_action_result_f_list_[closest_index].y 
+            #         self.current_target_pos_ = closest_window_f_pt
+            #     else:
+            #         all_local_f_covered_by_peers = True 
+            #         #only case that requires another action request
+            #         #send another action request to merge map and find closest merged_f_pt 
 
 
 

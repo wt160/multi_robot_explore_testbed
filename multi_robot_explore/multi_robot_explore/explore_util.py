@@ -8,6 +8,7 @@ from queue import PriorityQueue
 from heapq import *
 from datetime import datetime
 from multi_robot_interfaces.msg import Frontier
+from visualization_msgs.msg import Marker, MarkerArray
 class ExploreUtil:
     def __init__(self):
         self.center_to_circle_map = {}
@@ -478,6 +479,18 @@ class ExploreUtil:
 
 
             
+    def publishTextMarkerArray(self, robot_name, text_list, pose_list, scale_z):
+        m_array = MarkerArray()
+        for index, pose in enumerate(pose_list):
+            m = Marker()    
+            m.header.frame_id = robot_name + "/map"
+            m.type = 9
+            m.action = 0
+            m.pose = pose
+            m.scale.z = scale_z
+            m.text = text_list[index]
+            m_array.markers.append(m)
+        return m_array
     
 
     def get8ConnectNeighbors(self, curr_cell, width, height):

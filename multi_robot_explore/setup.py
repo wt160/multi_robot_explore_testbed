@@ -26,6 +26,7 @@ setup(
             'multi_explorer = multi_robot_explore.multi_explore_node:main',
             'multi_explorer_simple = multi_robot_explore.multi_explore_simple_node:main',
             'multi_explorer_swarm_simulation = multi_robot_explore.multi_explore_swarm_simulation_node:main',
+            'multi_explorer_simple_test_navigation = multi_robot_explore.multi_explore_simple_node_plan_2:main',
             'robot_track_publisher = multi_robot_explore.robot_track_publish_node:main',
             'get_robot_pose = multi_robot_explore.get_robot_pose_from_tf:main',
             'robot_registry = multi_robot_explore.robot_registry_node:main',
