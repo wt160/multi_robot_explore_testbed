@@ -99,6 +99,7 @@ class GroupCoordinator: public rclcpp::Node{
         vector<Frontier> local_frontiers_msg_;
         nav_msgs::msg::OccupancyGrid::SharedPtr local_inflated_map_; 
         map<std::string, vector<double>> init_offset_dict_;
+        vector<pair<double, double>> local_f_pt_away_from_peer_track_world_frame_list_;
         bool is_init_offset_dict_setup_;
         geometry_msgs::msg::Pose last_failed_frontier_pt_;
         geometry_msgs::msg::Pose current_robot_pose_local_frame_;

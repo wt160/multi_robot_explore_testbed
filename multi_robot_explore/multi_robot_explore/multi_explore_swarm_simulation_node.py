@@ -173,8 +173,8 @@ class MultiExploreNode(Node):
 
         for peer in self.persistent_robot_peers_:
             if peer != self.robot_name_:
-                self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords')
-                self.get_local_frontier_target_pt_client_map_[peer] = self.create_client(GetLocalFrontierTargetPt, peer + '/get_local_frontier_target_pt_service')
+                self.get_map_value_client_map_[peer] = self.create_client(GetPeerMapValueOnCoords, peer + '/get_map_value_on_coords', callback_group=self.para_group)
+                self.get_local_frontier_target_pt_client_map_[peer] = self.create_client(GetLocalFrontierTargetPt, peer + '/get_local_frontier_target_pt_service', callback_group=self.para_group)
         # self.peer_interface_ = PeerInterfaceNode(self.robot_name_)
         self.tic_ = 0
 
@@ -360,23 +360,25 @@ class MultiExploreNode(Node):
             self.r_interface_.navigateToPoseSwarmSimulationFunction(self.current_target_pos_)
             # self.getRobotCurrentPos()
             # direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-            is_thread_started = False
-            check_environment_thread = Thread(target=self.checkEnvironmentFunction)
-            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
+            # is_thread_started = False
+            # check_environment_thread = Thread(target=self.checkEnvironmentFunction)
+            # while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
 
-                # self.get_logger().error('start checking environment...')
-                # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
-                # self.getRobotCurrentPos()
-                current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
-                # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
-                # current_direct_length_square = 10.0
-                if current_direct_length_square < 2.0*2.0:
-                    if is_thread_started == False:
-                        check_environment_thread.start()
+            #     # self.get_logger().error('start checking environment...')
+            #     # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            #     # self.getRobotCurrentPos()
+            #     current_direct_length_square = (self.current_pos_[0] - self.current_target_pos_.position.x)*(self.current_pos_[0] - self.current_target_pos_.position.x) + (self.current_pos_[1] - self.current_target_pos_.position.y)*(self.current_pos_[1] - self.current_target_pos_.position.y)
+            #     # self.get_logger().warn("navigating to target {},{}".format(self.current_target_pos_.position.x, self.current_target_pos_.position.y ))
+            #     # current_direct_length_square = 10.0
+            #     if current_direct_length_square < 2.0*2.0:
+            #         if is_thread_started == False:
+            #             check_environment_thread.start()
 
-                        is_thread_started = True
-                    # return
+            #             is_thread_started = True
+            #         # return
                     
+            #     pass
+            while self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_MOVING:
                 pass
             if self.r_interface_.navigate_to_pose_state_ == self.e_util.NAVIGATION_DONE:
                 self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
@@ -418,15 +420,15 @@ class MultiExploreNode(Node):
                     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
-            if is_thread_started == True:
-                check_environment_thread.join()
-                self.current_target_pos_ = self.next_target_pos_
-                is_thread_started == False
-                self.setRobotState(self.e_util.GOING_TO_TARGET) 
+            # if is_thread_started == True:
+            #     check_environment_thread.join()
+            #     self.current_target_pos_ = self.next_target_pos_
+            #     is_thread_started == False
+            #     self.setRobotState(self.e_util.GOING_TO_TARGET) 
 
 
 
-            # self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
+            self.setRobotState(self.e_util.CHECK_ENVIRONMENT)
         elif self.current_state_ == self.e_util.CHECK_ENVIRONMENT:
             self.get_logger().error('Enter CHECK_ENVIRONMENT1')
             
@@ -538,20 +540,22 @@ class MultiExploreNode(Node):
                     local_frontier_target_pt_list = self.send_get_local_frontiers_target_value_request()
                     largest_dist = -1.0
                     furthest_target_pt = Point()
-                    for target_pt in local_frontier_target_pt_list:
-                        min_dist = 10000000000
-                        for track in self.peer_track_list_:
-                            dist = (target_pt.x - track.x)*(target_pt.x - track.x) + (target_pt.y - track.y)*(target_pt.y - track.y)
-                            if dist < min_dist:
-                                min_dist = dist
-                        if min_dist > largest_dist:
-                            largest_dist = min_dist
-                            furthest_target_pt = target_pt
-                    target_pose = Pose()
-                    target_pose.position.x = furthest_target_pt.x
-                    target_pose.position.y = furthest_target_pt.y 
-                    self.current_target_pos_ = target_pose
-
+                    if len(local_frontier_target_pt_list) > 0:
+                        for target_pt in local_frontier_target_pt_list:
+                            min_dist = 10000000000
+                            for track in self.peer_track_list_:
+                                dist = (target_pt.x - track.x)*(target_pt.x - track.x) + (target_pt.y - track.y)*(target_pt.y - track.y)
+                                if dist < min_dist:
+                                    min_dist = dist
+                            if min_dist > largest_dist:
+                                largest_dist = min_dist
+                                furthest_target_pt = target_pt
+                        target_pose = Pose()
+                        target_pose.position.x = furthest_target_pt.x
+                        target_pose.position.y = furthest_target_pt.y 
+                        self.current_target_pos_ = target_pose
+                    else:
+                        self.current_target_pos_ = None
                     #only case that requires another action request
                     #send another action request to merge map and find closest merged_f_pt 
 
@@ -650,14 +654,19 @@ class MultiExploreNode(Node):
 
     def send_get_map_values_request(self, check_pt_list):
         f_pt_index_to_peer_value_map = dict()
+        self.get_logger().warn('send_get_map_values_request')
         for peer in self.persistent_robot_peers_:
             if peer != self.robot_name_:
                 while not self.get_map_value_client_map_[peer].wait_for_service(timeout_sec=1.0):
                     pass 
                 req = GetPeerMapValueOnCoords.Request()
                 req.query_pt_list = check_pt_list
+                print("request " + peer)
                 self.get_logger().info('before')
-                res = self.get_map_value_client_map_[peer].call(req)
+                res_future = self.get_map_value_client_map_[peer].call_async(req)
+                while not res_future.done():
+                    pass 
+                res = res_future.result()
                 self.get_logger().info('after')
                 value_list_result = res.pt_value_list
                 for v_index in range(len(check_pt_list)):
@@ -682,7 +691,7 @@ class MultiExploreNode(Node):
                 while not res_future.done():
                     pass
                 response = res_future.result()
-                target_pt_list = res.local_frontier_target_pt
+                target_pt_list = response.local_frontier_target_pt
                 local_frontier_target_pt_list.extend(target_pt_list)
 
         return local_frontier_target_pt_list
@@ -850,7 +859,27 @@ class MultiExploreNode(Node):
                 self.next_target_pos_ = closest_window_f_pt
             else:
                 all_local_f_covered_by_peers = True 
-                self.get_logger().error('done ,rest......')
+
+                local_frontier_target_pt_list = self.send_get_local_frontiers_target_value_request()
+                largest_dist = -1.0
+                furthest_target_pt = Point()
+                if len(local_frontier_target_pt_list) > 0:
+                    for target_pt in local_frontier_target_pt_list:
+                        min_dist = 10000000000
+                        for track in self.peer_track_list_:
+                            dist = (target_pt.x - track.x)*(target_pt.x - track.x) + (target_pt.y - track.y)*(target_pt.y - track.y)
+                            if dist < min_dist:
+                                min_dist = dist
+                        if min_dist > largest_dist:
+                            largest_dist = min_dist
+                            furthest_target_pt = target_pt
+                    target_pose = Pose()
+                    target_pose.position.x = furthest_target_pt.x
+                    target_pose.position.y = furthest_target_pt.y 
+                    self.next_target_pos_ = target_pose
+                else:
+                    self.next_target_pos_ = None
+                # self.get_logger().error('done ,rest......')
 
                 #only case that requires another action request
                 #send another action request to merge map and find closest merged_f_pt 
