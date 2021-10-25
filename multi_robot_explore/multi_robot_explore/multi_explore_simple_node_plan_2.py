@@ -651,7 +651,7 @@ class MultiExploreNode(Node):
                 f_connect = []
                 for pt in window_f.frontier:
                     f_connect.append((pt.point.x, pt.point.y))
-                    # print('f_connect append:{},{}'.format(pt.point.x, pt.point.y))
+                    print('f_connect append:{},{}'.format(pt.point.x, pt.point.y))
 
                 observe_pt_and_frontier_pt = self.e_util.getObservePtForFrontiers(f_connect, self.inflated_local_map_, 13, 18)
                 if observe_pt_and_frontier_pt == None:
@@ -668,7 +668,7 @@ class MultiExploreNode(Node):
                 text_list.append(text)
                 pose_list.append(observe_pose)
                 target_pose_dict[window_index] = observe_pose   
-
+            self.get_logger().error('before choosing window_index')
             text_marker_array = self.e_util.publishTextMarkerArray(self.robot_name_, text_list, pose_list, 0.2)
             self.debug_window_f_text_pub_.publish(text_marker_array)
 
