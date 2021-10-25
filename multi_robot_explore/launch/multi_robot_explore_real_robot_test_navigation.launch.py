@@ -8,7 +8,7 @@ def generate_launch_description():
     robot_name = LaunchConfiguration('robot_name', default="tb0")
     total_robot_num = LaunchConfiguration('total_robot_num', default="3")
     mode = LaunchConfiguration('mode', default="real_robot")
-    multi_robot_real_robot_param_file_name = 'multi_robot_simple_params.yaml'
+    multi_robot_real_robot_param_file_name = 'multi_robot_simple_test_navigation_params.yaml'
     multi_robot_real_robot_param_dir = LaunchConfiguration(  
         'params',
         default=os.path.join( 
