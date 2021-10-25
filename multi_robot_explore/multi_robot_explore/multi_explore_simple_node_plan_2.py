@@ -651,16 +651,17 @@ class MultiExploreNode(Node):
                 f_connect = []
                 for pt in window_f.frontier:
                     f_connect.append((pt.point.x, pt.point.y))
-                    print('f_connect append:{},{}'.format(pt.point.x, pt.point.y))
-
+                    
                 observe_pt_and_frontier_pt = self.e_util.getObservePtForFrontiers(f_connect, self.inflated_local_map_, 13, 18)
                 if observe_pt_and_frontier_pt == None:
                     self.get_logger().error('window_f {} no target pt found!!!'.format(window_index))
                     continue
                 observe_pt = observe_pt_and_frontier_pt[0]
+                
                 observe_pose = Pose()
                 observe_pose.position.x = observe_pt[0]
                 observe_pose.position.y = observe_pt[1]
+                print('window_f({}), pose:{},{}'.format(window_index, observe_pt[0], observe_pt[1]))
 
 
                 frontier_pt = observe_pt_and_frontier_pt[1]
